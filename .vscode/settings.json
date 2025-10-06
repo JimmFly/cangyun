@@ -1,3 +1,4 @@
 {
-  "cSpell.words": ["cangyun"]
+  "cSpell.words": ["cangyun"],
+  "deepscan.ignoreConfirmWarning": true
 }

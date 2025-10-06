@@ -1,5 +1,5 @@
-import { createRuntimeConfig, type RuntimeConfig } from "@cangyun-ai/config";
-import type { AnalyticsEvent } from "@cangyun-ai/types";
+import { createRuntimeConfig, type RuntimeConfig } from '@cangyun-ai/config';
+import type { AnalyticsEvent } from '@cangyun-ai/types';
 
 export type AnalyticsTransport = (
   event: AnalyticsEvent,
@@ -17,7 +17,7 @@ export const createAnalyticsClient = (
 ): AnalyticsClient => {
   const runtimeConfig = createRuntimeConfig(overrides);
 
-  const track: AnalyticsClient["track"] = async (event) => {
+  const track: AnalyticsClient['track'] = async event => {
     if (!runtimeConfig.analyticsEnabled) return;
     await transport(event, runtimeConfig);
   };

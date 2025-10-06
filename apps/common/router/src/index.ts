@@ -1,10 +1,10 @@
-import type { AnalyticsEvent } from "@cangyun-ai/types";
-import { createStaticHook } from "@cangyun-ai/hooks";
+import type { AnalyticsEvent } from '@cangyun-ai/types';
+import { createStaticHook } from '@cangyun-ai/hooks';
 import {
   createAnalyticsClient,
   type AnalyticsClient,
   type AnalyticsTransport,
-} from "@cangyun-ai/analytics";
+} from '@cangyun-ai/analytics';
 
 export interface RouteDefinition {
   id: string;
@@ -24,7 +24,7 @@ export const createRouteGuard = (transport: AnalyticsTransport) => {
 
   return async (route: RouteDefinition): Promise<boolean> => {
     const event: AnalyticsEvent = {
-      name: "route:view",
+      name: 'route:view',
       payload: { id: route.id, path: route.path },
     };
     await analytics.track(event);

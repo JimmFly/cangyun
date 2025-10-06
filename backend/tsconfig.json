@@ -5,6 +5,7 @@
     "resolvePackageJsonExports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
+    "composite": true,
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
@@ -13,6 +14,8 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "../node_modules/.cache/tsbuildinfo/backend.tsbuildinfo",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
@@ -20,5 +23,18 @@
     "noImplicitAny": true,
     "strictBindCallApply": true,
     "noFallthroughCasesInSwitch": true
-  }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["test", "dist", "node_modules"],
+  "references": [
+    { "path": "../apps/common/types" },
+    { "path": "../apps/common/utils" },
+    { "path": "../apps/common/config" },
+    { "path": "../apps/common/hooks" },
+    { "path": "../apps/common/i18n" },
+    { "path": "../apps/common/graphql" },
+    { "path": "../apps/common/analytics" },
+    { "path": "../apps/common/ui" },
+    { "path": "../apps/common/router" }
+  ]
 }

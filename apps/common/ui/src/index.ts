@@ -1,6 +1,6 @@
-import type { Locale } from "@cangyun-ai/types";
-import { createStaticHook } from "@cangyun-ai/hooks";
-import { createTranslator, type TranslationBundle } from "@cangyun-ai/i18n";
+import type { Locale } from '@cangyun-ai/types';
+import { createStaticHook } from '@cangyun-ai/hooks';
+import { createTranslator, type TranslationBundle } from '@cangyun-ai/i18n';
 
 export interface DesignTokens {
   radius: number;
@@ -9,7 +9,7 @@ export interface DesignTokens {
 
 export const useDesignTokens = createStaticHook<DesignTokens>({
   radius: 8,
-  locale: "zh-CN",
+  locale: 'zh-CN',
 });
 
 export interface UiLabelDescriptor {

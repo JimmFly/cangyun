@@ -34,42 +34,44 @@ module.exports = {
           {
             target: './apps/common/**',
             from: './apps/web/**',
-            message: 'Common packages cannot depend on specific applications'
+            message: 'Common packages cannot depend on specific applications',
           },
           {
             target: './apps/common/**',
             from: './apps/admin/**',
-            message: 'Common packages cannot depend on specific applications'
+            message: 'Common packages cannot depend on specific applications',
           },
           // Foundation layer cannot depend on higher layers
           {
             target: './apps/common/types/**',
             from: './apps/common/!(types)/**',
-            message: 'types package must have no dependencies on other common packages'
+            message:
+              'types package must have no dependencies on other common packages',
           },
           {
             target: './apps/common/utils/**',
             from: './apps/common/!(types|utils)/**',
-            message: 'utils can only depend on types'
+            message: 'utils can only depend on types',
           },
           // Prevent feature-to-feature imports in web app
           {
             target: './apps/web/src/features/*',
             from: './apps/web/src/features/*',
             except: ['./apps/web/src/features/index.ts'],
-            message: 'Features should not import from each other directly'
+            message: 'Features should not import from each other directly',
           },
-        ]
-      }
+        ],
+      },
     ],
-    'import/no-cycle': ['error', { maxDepth: 10 }]
-  }
-}
+    'import/no-cycle': ['error', { maxDepth: 10 }],
+  },
+};
 ```
 
 ---
 
 **Next Steps:**
+
 1. Review and approve package-based architecture approach
 2. Create detailed implementation tickets for Phase 0-1
 3. Set up `apps/common/` directory structure and initial packages
@@ -80,6 +82,7 @@ module.exports = {
 8. Document each package's API and usage patterns
 
 **Success Criteria:**
+
 - All common packages have clear README documentation
 - Import paths use `@cangyun-ai/*` prefix consistently
 - No circular dependencies detected by ESLint
@@ -91,6 +94,7 @@ module.exports = {
 ## 2. Goals & Non-Goals
 
 ### 2.1 Goals
+
 - Define a layered architecture that keeps domain logic, UI, and infrastructure concerns separated.
 - Standardise project structure, naming, and coding conventions to streamline onboarding and code review.
 - Ensure the stack supports real-time GraphQL interactions, rich interactions, and progressive enhancement.
@@ -98,6 +102,7 @@ module.exports = {
 - Outline a roadmap for incremental adoption so teams can migrate without blocking feature delivery.
 
 ### 2.2 Non-Goals
+
 - Mandating server-side rendering or microfrontend adoption (future evaluations may revisit).
 - Replacing existing backend or deployment tooling; focus is the web client.
 - Exhaustive design system specification (handled by design tokens initiative).
@@ -267,6 +272,7 @@ Layer 6 (Application):
 Centralizes all GraphQL infrastructure in a dedicated package that can be shared across multiple frontend applications.
 
 **Responsibilities:**
+
 - Apollo Client configuration (HTTP + WebSocket links)
 - GraphQL operation definitions (`.graphql` files)
 - Code generation (types + hooks via `@graphql-codegen`)
@@ -275,6 +281,7 @@ Centralizes all GraphQL infrastructure in a dedicated package that can be shared
 - Custom hooks for common patterns (optimistic updates, subscriptions)
 
 **Key Features:**
+
 - **Apollo Client 3** with split links:
   - HTTP link for queries and mutations
   - WebSocket link (`graphql-ws`) for subscriptions
@@ -284,34 +291,35 @@ Centralizes all GraphQL infrastructure in a dedicated package that can be shared
 - **Error handling:** Centralized error link for auth (401), retries, and logging
 
 **Package Structure:**
+
 ```typescript
 // apps/common/graphql/src/client/apollo.ts
-import { ApolloClient, InMemoryCache, split, HttpLink } from '@apollo/client'
-import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
-import { getMainDefinition } from '@apollo/client/utilities'
-import { createClient } from 'graphql-ws'
+import { ApolloClient, InMemoryCache, split, HttpLink } from '@apollo/client';
+import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
+import { getMainDefinition } from '@apollo/client/utilities';
+import { createClient } from 'graphql-ws';
 
 const httpLink = new HttpLink({
   uri: import.meta.env.VITE_GRAPHQL_ENDPOINT,
-})
+});
 
 const wsLink = new GraphQLWsLink(
   createClient({
     url: import.meta.env.VITE_GRAPHQL_WS_ENDPOINT,
   })
-)
+);
 
 const splitLink = split(
   ({ query }) => {
-    const definition = getMainDefinition(query)
+    const definition = getMainDefinition(query);
     return (
       definition.kind === 'OperationDefinition' &&
       definition.operation === 'subscription'
-    )
+    );
   },
   wsLink,
   httpLink
-)
+);
 
 export const apolloClient = new ApolloClient({
   link: splitLink,
@@ -321,29 +329,33 @@ export const apolloClient = new ApolloClient({
       ChatSession: { keyFields: ['id'] },
     },
   }),
-})
+});
 ```
 
 **Usage in Applications:**
+
 ```typescript
 // apps/web/src/features/chat/routes/ChatRoute.tsx
-import { useChatSessionQuery, useSendMessageMutation } from '@cangyun-ai/graphql'
-import { defer } from 'react-router'
+import {
+  useChatSessionQuery,
+  useSendMessageMutation,
+} from '@cangyun-ai/graphql';
+import { defer } from 'react-router';
 
 export function loader({ params }: { params: { sessionId: string } }) {
   return defer({
     session: apolloClient.query({
       query: chatSessionQuery,
-      variables: { id: params.sessionId }
-    })
-  })
+      variables: { id: params.sessionId },
+    }),
+  });
 }
 
 function ChatComponent() {
-  const { data, loading } = useChatSessionQuery({ 
-    variables: { id: '123' } 
-  })
-  
+  const { data, loading } = useChatSessionQuery({
+    variables: { id: '123' },
+  });
+
   const [sendMessage] = useSendMessageMutation({
     optimisticResponse: {
       sendMessage: {
@@ -353,13 +365,14 @@ function ChatComponent() {
         status: 'sending',
       },
     },
-  })
-  
+  });
+
   // ...
 }
 ```
 
 **Schema Governance:**
+
 1. Backend maintains `schema.graphql` as source of truth
 2. Frontend pulls schema via `pnpm graphql:pull` → `apps/common/graphql/src/schema/`
 3. Codegen watches schema and regenerates types automatically
@@ -367,15 +380,18 @@ function ChatComponent() {
 5. Breaking changes detected via `graphql-inspector diff --fail-on-breaking`
 
 **Dependencies:**
+
 - Internal: `@cangyun-ai/types`, `@cangyun-ai/config`
 - External: `@apollo/client`, `graphql-ws`, `@graphql-codegen/*`
 
 ### 5.2 Local/UI State
+
 - Use React Context + `useReducer` for complex UI flows (chat streaming, composer state).
 - Prefer component-local state (`useState`) for simple presentation logic.
 - For cross-feature coordination (e.g., theme or auth), expose contexts from `app/providers`.
 
 ### 5.3 Forms & Mutations
+
 - Use React Router actions (`useFetcher`) for imperative operations (rename, delete) while delegating to `@cangyun-ai/graphql` mutations.
 - For optimistic UI, update Apollo cache in action handlers and revert on error.
 - Leverage `useOptimisticMutation` hook from `@cangyun-ai/graphql` for common patterns.
@@ -392,6 +408,7 @@ function ChatComponent() {
 - Implement scroll restoration via React Router `useScrollRestoration`; allow features to opt into custom logic (e.g., chat keeps scroll pinned to bottom).
 
 **Example:**
+
 ```typescript
 // apps/web/src/app/router.tsx
 import { createBrowserRouter } from 'react-router'
@@ -431,6 +448,7 @@ export const router = createBrowserRouter([
 - Extend shadcn-ui components with accessibility patterns (ARIA attributes, focus management) baked in, reducing per-feature burden while satisfying WCAG AA guidelines.
 
 **Usage:**
+
 ```typescript
 // apps/web/src/features/chat/components/ChatHeader.tsx
 import { Button, Dialog } from '@cangyun-ai/ui'
@@ -438,7 +456,7 @@ import { useTheme } from '@cangyun-ai/ui'
 
 function ChatHeader() {
   const { theme, setTheme } = useTheme()
-  
+
   return (
     <header>
       <Button variant="outline" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
@@ -456,12 +474,14 @@ function ChatHeader() {
 Comprehensive i18n infrastructure supporting multiple locales with type safety.
 
 **Supported Locales:**
+
 - `zh-CN` (Simplified Chinese, default)
 - `zh-TW` (Traditional Chinese)
 - `en-US` (English)
 - `ja-JP` (Japanese, future)
 
 **Key Features:**
+
 - **i18next + react-i18next** for React integration
 - **Type-safe translations:** Generated types ensure no missing keys
 - **Namespace isolation:** Each feature has its own namespace (`common`, `chat`, `dashboard`, `settings`)
@@ -472,12 +492,13 @@ Comprehensive i18n infrastructure supporting multiple locales with type safety.
 - **Platform integration:** Sync with Lokalise/Crowdin for professional translation workflow
 
 **Configuration:**
+
 ```typescript
 // apps/common/i18n/src/config/i18next.ts
-import i18n from 'i18next'
-import { initReactI18next } from 'react-i18next'
-import Backend from 'i18next-http-backend'
-import LanguageDetector from 'i18next-browser-languagedetector'
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import Backend from 'i18next-http-backend';
+import LanguageDetector from 'i18next-browser-languagedetector';
 
 i18n
   .use(Backend)
@@ -494,10 +515,11 @@ i18n
       order: ['querystring', 'cookie', 'localStorage', 'navigator'],
       caches: ['localStorage', 'cookie'],
     },
-  })
+  });
 ```
 
 **Usage:**
+
 ```typescript
 // apps/web/src/features/chat/components/ChatHeader.tsx
 import { useTranslation, useFormatDate } from '@cangyun-ai/i18n'
@@ -505,7 +527,7 @@ import { useTranslation, useFormatDate } from '@cangyun-ai/i18n'
 function ChatHeader({ session }: { session: ChatSession }) {
   const { t } = useTranslation('chat')
   const formatDate = useFormatDate()
-  
+
   return (
     <header>
       <h1>{t('session_title', { title: session.title })}</h1>
@@ -517,6 +539,7 @@ function ChatHeader({ session }: { session: ChatSession }) {
 ```
 
 **Translation Workflow:**
+
 1. Developers add translation keys: `t('new_feature.action')`
 2. CI runs `pnpm i18n:extract` to detect missing keys
 3. Export to translation platform (Lokalise/Crowdin)
@@ -525,10 +548,12 @@ function ChatHeader({ session }: { session: ChatSession }) {
 6. Type generation ensures compile-time safety
 
 **Dependencies:**
+
 - Internal: `@cangyun-ai/types`, `@cangyun-ai/utils`, `@cangyun-ai/hooks`
 - External: `i18next`, `react-i18next`, `date-fns`
 
 ### 8.2 Accessibility
+
 - Enforce accessible defaults (semantic HTML, `aria-live` for streaming updates, keyboard navigation across modals/menus).
 - Add lint rules (`eslint-plugin-jsx-a11y`) and storybook accessibility checks (future addition).
 - All user-facing text must use `@cangyun-ai/i18n` translations—no hardcoded strings.
@@ -550,26 +575,31 @@ function ChatHeader({ session }: { session: ChatSession }) {
 ## 8. Cross-Cutting Concerns
 
 ### 8.1 Accessibility & Localisation
+
 - Use `react-i18next` for translations; maintain namespaces per feature.
 - Enforce accessible defaults (semantic HTML, `aria-live` for streaming updates, keyboard navigation across modals/menus).
 - Add lint rules (`eslint-plugin-jsx-a11y`) and storybook accessibility checks (future addition).
 
 ### 8.2 Accessibility
+
 - Enforce accessible defaults (semantic HTML, `aria-live` for streaming updates, keyboard navigation across modals/menus).
 - Add lint rules (`eslint-plugin-jsx-a11y`) and storybook accessibility checks (future addition).
 - All user-facing text must use `@cangyun-ai/i18n` translations—no hardcoded strings.
 
 ### 8.3 Analytics & Telemetry (`@cangyun-ai/analytics`)
+
 - Expose `useAnalytics()` hook to log events; automatically include route metadata (screen name, session id).
 - Collect performance metrics via `web-vitals` and send with analytics events.
 - Integrate error monitoring (Sentry or similar) with React error boundaries.
 - Type-safe event schema defined in `@cangyun-ai/analytics/schema`.
 
 ### 8.4 Feature Flags (`@cangyun-ai/config`)
+
 - Provide flag utilities via `@cangyun-ai/config`; allow remote config via GraphQL or LaunchDarkly.
 - Features read flags through hooks; fallback to sensible defaults for offline scenarios.
 
 ### 8.5 Security
+
 - Sanitize user-generated content (markdown rendering) using reliable libraries (e.g., `@uiw/react-md-editor` + DOMPurify).
 - All network requests include auth headers; ensure tokens stored securely (httpOnly cookies preferred).
 - Guard against XSS by forbidding `dangerouslySetInnerHTML` outside audited wrappers.
@@ -577,12 +607,14 @@ function ChatHeader({ session }: { session: ChatSession }) {
 ## 9. Testing & Quality
 
 ### 9.1 Testing Pyramid
+
 - **Unit (Vitest):** utilities, hooks, reducers.
 - **Component (React Testing Library):** feature components with mocked router + Apollo clients.
 - **Integration:** route modules using `createMemoryRouter`; test loaders/actions with MSW GraphQL mocks.
 - **E2E (Playwright):** user journeys (chat conversation, dashboard filters, settings save).
 
 ### 9.2 Tooling
+
 - ESLint (flat config) with TypeScript, React, a11y, unused imports removal.
 - Prettier for formatting; Husky + lint-staged optional (evaluate once team size grows).
 - Storybook (future) for UI primitives; leverage Chromatic for visual diffs.
@@ -592,6 +624,7 @@ function ChatHeader({ session }: { session: ChatSession }) {
 ### 10.1 Workspace Configuration
 
 **pnpm-workspace.yaml:**
+
 ```yaml
 packages:
   - 'apps/*'
@@ -601,6 +634,7 @@ packages:
 ```
 
 **Root package.json Scripts:**
+
 ```json
 {
   "scripts": {
@@ -621,6 +655,7 @@ packages:
 ### 10.2 TypeScript Configuration
 
 **Root tsconfig.base.json:**
+
 ```json
 {
   "compilerOptions": {
@@ -654,6 +689,7 @@ packages:
 ```
 
 **Per-package tsconfig.json:**
+
 ```json
 {
   "extends": "../../../tsconfig.base.json",
@@ -670,6 +706,7 @@ packages:
 ```
 
 ### 10.3 Build Process
+
 - Use pnpm workspaces; `pnpm build` runs Vite build with Tailwind + GraphQL codegen pre-step.
 - Build common packages first, then applications.
 - Produce code-split bundles: main app and vendor chunk; leverage React Router lazy routes.
@@ -712,12 +749,14 @@ Handled by `@cangyun-ai/analytics` package.
 ## 15. Dev Experience & Tooling
 
 ### 15.1 Onboarding & Environment
+
 - Provide a single `pnpm setup` script that runs `pnpm install`, pulls the latest GraphQL schema (`pnpm graphql:schema`), executes initial codegen, and copies `.env.example` → `.env.local`.
 - Document workspace prerequisites in `docs/development.md` (Node version via fnm, pnpm usage, required CLI tools such as shadcn-ui generator, Docker for backend services).
 - Supply a `.devcontainer` (or `scripts/setup-local.sh`) for one-command environment bootstrapping on new machines.
 - Maintain VS Code recommendations (`.vscode/extensions.json`) covering Tailwind, GraphQL, ESLint, and shadcn-ui snippets; configure `.vscode/settings.json` for format-on-save, Tailwind class sorting, and GraphQL IntelliSense.
 
 ### 15.2 Automation & Guardrails
+
 - Enforce module boundaries via ESLint `import/no-restricted-paths` (prevent feature ↔ feature coupling without explicit contracts).
 - Add type-check (`pnpm typecheck`), lint (`pnpm lint`), and test (`pnpm test`) tasks to CI; wire optional pre-commit hooks using `lefthook`/`husky` + `lint-staged` for staged file checks.
 - Run GraphQL codegen in watch mode (`pnpm codegen:watch`) during local development so generated hooks stay in sync; fail CI if `git status` is dirty post-codegen.
@@ -725,6 +764,7 @@ Handled by `@cangyun-ai/analytics` package.
 - Offer `pnpm analyze` (bundle stats), `pnpm format` (Prettier), and `pnpm check` (composite command running lint + typecheck + tests) for quick feedback before PRs.
 
 ### 15.3 Developer Utilities
+
 - Prefer absolute imports using TypeScript path mapping (configured in `tsconfig.base.json`).
 - Import from common packages: `import { Button } from '@cangyun-ai/ui'`
 - Provide CLI scaffolds:
@@ -774,38 +814,43 @@ Handled by `@cangyun-ai/analytics` package.
 
 ## 17. Risks & Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Package interdependency complexity | Medium | Strict layered architecture; ESLint rules to prevent circular deps |
-| Migration disruption during active development | High | Phased rollout; feature freeze during critical phases |
-| Learning curve for new developers | Medium | Comprehensive documentation; package READMEs; onboarding sessions |
-| Performance regressions from GraphQL over-fetching | High | Use `defer`, Apollo cache tuning, request logging |
-| Tooling setup complexity (codegen, i18n, etc.) | Medium | `pnpm setup` script automates all initialization |
-| Version drift across common packages | Low | Use `workspace:*` protocol; unified versioning strategy |
+| Risk                                               | Impact | Mitigation                                                         |
+| -------------------------------------------------- | ------ | ------------------------------------------------------------------ |
+| Package interdependency complexity                 | Medium | Strict layered architecture; ESLint rules to prevent circular deps |
+| Migration disruption during active development     | High   | Phased rollout; feature freeze during critical phases              |
+| Learning curve for new developers                  | Medium | Comprehensive documentation; package READMEs; onboarding sessions  |
+| Performance regressions from GraphQL over-fetching | High   | Use `defer`, Apollo cache tuning, request logging                  |
+| Tooling setup complexity (codegen, i18n, etc.)     | Medium | `pnpm setup` script automates all initialization                   |
+| Version drift across common packages               | Low    | Use `workspace:*` protocol; unified versioning strategy            |
 
 ## 18. Benefits of Package-Based Architecture
 
 ### 18.1 Code Reusability
+
 - Future applications (`apps/admin`, `apps/mobile-web`) can reuse all common packages
 - No code duplication; bug fixes propagate to all consumers
 - Shared infrastructure reduces development time for new apps
 
 ### 18.2 Clear Boundaries
+
 - Each package has a single responsibility
 - Explicit dependencies prevent spaghetti code
 - Team ownership: different teams can own different packages
 
 ### 18.3 Independent Development
+
 - Packages can be developed, tested, and versioned independently
 - Use `pnpm --filter` to work on specific packages
 - Faster test suites (test only what changed)
 
 ### 18.4 Type Safety
+
 - TypeScript project references provide excellent type checking
 - Changes to types propagate across all dependents
 - Better IDE intellisense and autocomplete
 
 ### 18.5 Performance
+
 - Vite caches unchangedpackages effectively
 - Incremental builds are faster
 - Better tree-shaking with explicit exports
@@ -820,6 +865,7 @@ Handled by `@cangyun-ai/analytics` package.
 ---
 
 **Next Steps:**
+
 1. Review and sign off on architecture principles.
 2. Create migration tickets for Phase 1 tasks (directory restructuring, chat feature migration).
 3. Schedule knowledge-sharing sessions to onboard teams to the new conventions.

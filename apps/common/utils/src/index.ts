@@ -1,10 +1,10 @@
-import type { Locale } from "@cangyun-ai/types";
+import type { Locale } from '@cangyun-ai/types';
 
 export const identity = <T>(value: T): T => value;
 
 export const ensureLocale = (
   locale: Locale,
-  fallback: Locale = "zh-CN"
+  fallback: Locale = 'zh-CN'
 ): Locale => locale ?? fallback;
 
 export const pick = <T extends object, K extends keyof T>(

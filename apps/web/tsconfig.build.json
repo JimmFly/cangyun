@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": false,
+    "outDir": "./.tsbuild",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./.tsbuild/tsconfig.build.tsbuildinfo"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../common/types" },
+    { "path": "../common/utils" },
+    { "path": "../common/config" },
+    { "path": "../common/hooks" },
+    { "path": "../common/i18n" },
+    { "path": "../common/graphql" },
+    { "path": "../common/analytics" },
+    { "path": "../common/ui" },
+    { "path": "../common/router" }
+  ]
+}

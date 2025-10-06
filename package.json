@@ -7,13 +7,54 @@
   "workspaces": [
     "backend",
     "apps/*",
+    "apps/common/*",
     "packages/*"
   ],
   "scripts": {
-    "build": "pnpm -r --filter ./backend run build",
-    "dev": "pnpm -r --parallel --filter ./backend run start:dev",
-    "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
-    "format": "pnpm -r format"
+    "setup": "pnpm install && pnpm run build:common",
+    "dev": "pnpm --parallel --filter web --filter cangyun-backend run dev",
+    "dev:web": "pnpm --filter web run dev",
+    "dev:backend": "pnpm --filter cangyun-backend run dev",
+    "build": "pnpm run build:common && pnpm --filter web run build && pnpm --filter cangyun-backend run build",
+    "build:common": "pnpm --recursive --workspace-concurrency=1 --filter \"@cangyun-ai/*\" run build",
+    "typecheck": "tsc -b tsconfig.json --verbose",
+    "lint:eslint": "eslint . --cache",
+    "lint:eslint:fix": "eslint . --cache --fix",
+    "lint:prettier": "prettier --ignore-unknown --cache --check .",
+    "lint:prettier:fix": "prettier --ignore-unknown --cache --write .",
+    "lint": "pnpm run lint:eslint && pnpm run lint:prettier",
+    "lint:fix": "pnpm run lint:eslint:fix && pnpm run lint:prettier:fix",
+    "test": "pnpm --filter cangyun-backend run test",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
+    "postinstall": "husky || true",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown --cache",
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --ignore-unknown --write",
+      "eslint --cache --fix"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.37.0",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "eslint": "^9.37.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import-x": "^4.16.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.3",
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.45.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "vite": "npm:rolldown-vite@7.1.14"
+    }
   }
 }

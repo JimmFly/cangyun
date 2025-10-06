@@ -1,5 +1,5 @@
-import type { FeatureFlag } from "@cangyun-ai/types";
-import { identity } from "@cangyun-ai/utils";
+import type { FeatureFlag } from '@cangyun-ai/types';
+import { identity } from '@cangyun-ai/utils';
 
 export const createStaticHook =
   <T>(value: T): (() => T) =>

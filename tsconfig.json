@@ -1,0 +1,16 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/common/types" },
+    { "path": "./apps/common/utils" },
+    { "path": "./apps/common/config" },
+    { "path": "./apps/common/hooks" },
+    { "path": "./apps/common/i18n" },
+    { "path": "./apps/common/graphql" },
+    { "path": "./apps/common/analytics" },
+    { "path": "./apps/common/ui" },
+    { "path": "./apps/common/router" },
+    { "path": "./apps/web/tsconfig.build.json" },
+    { "path": "./backend" }
+  ]
+}

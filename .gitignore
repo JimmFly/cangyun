@@ -17,6 +17,15 @@ pnpm-debug.log*
 **/dist/
 coverage/
 
+# TypeScript build info
+**/*.tsbuildinfo
+**/.tsbuild/
+
+# TypeScript compiled output in source folders
+**/test/**/*.js
+**/test/**/*.d.ts
+**/test/**/*.js.map
+
 # Env
 .env
 .env.*.local

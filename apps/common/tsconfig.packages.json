@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./types" },
+    { "path": "./utils" },
+    { "path": "./config" },
+    { "path": "./hooks" },
+    { "path": "./i18n" },
+    { "path": "./graphql" },
+    { "path": "./analytics" },
+    { "path": "./ui" },
+    { "path": "./router" }
+  ]
+}

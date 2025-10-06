@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+**/dist/
+**/.tsbuild/
+coverage/
+
+# TypeScript
+**/*.tsbuildinfo
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Misc
+*.min.js
+*.min.css
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
