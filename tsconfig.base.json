@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@cangyun-ai/analytics": ["./apps/common/analytics/src"],
+      "@cangyun-ai/config": ["./apps/common/config/src"],
+      "@cangyun-ai/graphql": ["./apps/common/graphql/src"],
+      "@cangyun-ai/hooks": ["./apps/common/hooks/src"],
+      "@cangyun-ai/i18n": ["./apps/common/i18n/src"],
+      "@cangyun-ai/router": ["./apps/common/router/src"],
+      "@cangyun-ai/types": ["./apps/common/types/src"],
+      "@cangyun-ai/ui": ["./apps/common/ui/src"],
+      "@cangyun-ai/utils": ["./apps/common/utils/src"]
+    }
+  }
+}

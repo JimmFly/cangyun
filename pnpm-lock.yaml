@@ -8,6 +8,119 @@ importers:
 
   .: {}
 
+  apps/common/analytics:
+    dependencies:
+      '@cangyun-ai/config':
+        specifier: workspace:*
+        version: link:../config
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
+  apps/common/config:
+    dependencies:
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
+  apps/common/graphql:
+    dependencies:
+      '@cangyun-ai/config':
+        specifier: workspace:*
+        version: link:../config
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
+  apps/common/hooks:
+    dependencies:
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../types
+      '@cangyun-ai/utils':
+        specifier: workspace:*
+        version: link:../utils
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
+  apps/common/i18n:
+    dependencies:
+      '@cangyun-ai/hooks':
+        specifier: workspace:*
+        version: link:../hooks
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../types
+      '@cangyun-ai/utils':
+        specifier: workspace:*
+        version: link:../utils
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
+  apps/common/router:
+    dependencies:
+      '@cangyun-ai/analytics':
+        specifier: workspace:*
+        version: link:../analytics
+      '@cangyun-ai/hooks':
+        specifier: workspace:*
+        version: link:../hooks
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
+  apps/common/types:
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
+  apps/common/ui:
+    dependencies:
+      '@cangyun-ai/hooks':
+        specifier: workspace:*
+        version: link:../hooks
+      '@cangyun-ai/i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
+  apps/common/utils:
+    dependencies:
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
   apps/web:
     dependencies:
       react:
