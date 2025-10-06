@@ -1,21 +1,21 @@
-import type { FeatureFlag, Locale } from '@cangyun-ai/types'
+import type { FeatureFlag, Locale } from "@cangyun-ai/types";
 
 export interface RuntimeConfig {
-  defaultLocale: Locale
-  featureFlags: Record<string, boolean>
-  analyticsEnabled: boolean
+  defaultLocale: Locale;
+  featureFlags: Record<string, boolean>;
+  analyticsEnabled: boolean;
 }
 
 export const createRuntimeConfig = (
   overrides: Partial<RuntimeConfig> = {}
 ): RuntimeConfig => ({
-  defaultLocale: 'zh-CN',
+  defaultLocale: "zh-CN",
   featureFlags: {},
   analyticsEnabled: true,
-  ...overrides
-})
+  ...overrides,
+});
 
 export const isFeatureEnabled = (
   flag: FeatureFlag,
   config: RuntimeConfig
-): boolean => config.featureFlags[flag.key] ?? flag.enabled
+): boolean => config.featureFlags[flag.key] ?? flag.enabled;
