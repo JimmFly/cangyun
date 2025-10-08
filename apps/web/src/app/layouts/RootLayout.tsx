@@ -1,5 +1,5 @@
 import { Link, Outlet } from 'react-router';
-import { Button } from '../../components/ui/button';
+import { Button } from '@cangyun-ai/ui';
 
 export function RootLayout() {
   return (
