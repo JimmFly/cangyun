@@ -13,7 +13,7 @@
   "aliases": {
     "components": "@cangyun-ai/ui/components",
     "utils": "@cangyun-ai/ui/lib/utils",
-    "ui": "@cangyun-ai/ui/components/ui",
+    "ui": "src/components/ui",
     "lib": "@cangyun-ai/ui/lib",
     "hooks": "@cangyun-ai/hooks"
   },
