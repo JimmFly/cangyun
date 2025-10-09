@@ -4,6 +4,5 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://vite.dev/config/
 export default defineConfig({
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   plugins: [react(), tailwindcss()],
 });
