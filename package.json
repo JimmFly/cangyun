@@ -55,6 +55,13 @@
   "pnpm": {
     "overrides": {
       "vite": "npm:rolldown-vite@7.1.14"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@swc/core",
+      "@tailwindcss/oxide",
+      "msw",
+      "unrs-resolver"
+    ]
   }
 }
