@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { Button } from '@cangyun-ai/ui';
+import { Button } from '@cangyun-ai/ui/components/ui/button';
 
 export function NotFoundRoute() {
   return (

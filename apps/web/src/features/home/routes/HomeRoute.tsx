@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react';
-import { Button } from '@cangyun-ai/ui';
+import { Button } from '@cangyun-ai/ui/components/ui/button';
 
 export function HomeRoute() {
   return (
