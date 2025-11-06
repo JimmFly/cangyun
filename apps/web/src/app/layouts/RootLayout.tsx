@@ -3,40 +3,50 @@ import { Button } from '@cangyun-ai/ui/components/ui/button';
 
 export function RootLayout() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card/40 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+    <div className="min-h-screen bg-gradient-to-b from-black via-neutral-950 to-neutral-900 text-neutral-50 antialiased">
+      <header className="border-b border-white/10 bg-white/5 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link
             to="/"
-            className="text-lg font-semibold tracking-tight text-foreground"
+            className="text-lg font-semibold tracking-tight text-white"
           >
-            Cangyun Console
+            Cangyun
           </Link>
-          <nav className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
-            <Link to="/" className="transition hover:text-foreground">
-              首页
+          <nav className="flex items-center gap-4 text-xs font-medium text-neutral-300">
+            <Link to="/" className="transition hover:text-white">
+              方案
             </Link>
-            <Button variant="outline" size="sm" asChild>
+            <Link to="/chat" className="transition hover:text-white">
+              对话助手
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 border-white/20 bg-white/10 text-xs text-neutral-100 hover:bg-white/20"
+              asChild
+            >
               <a
-                href="https://reactrouter.com"
+                href="https://github.com/jimmfly/cangyun"
                 target="_blank"
                 rel="noreferrer"
               >
-                React Router 文档
+                仓库
               </a>
             </Button>
           </nav>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 px-6 py-16">
+      <main className="mx-auto flex h-[calc(100vh-60px)] w-full max-w-4xl flex-1 px-0">
         <Outlet />
       </main>
 
-      <footer className="border-t border-border bg-card/40">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4 text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} Cangyun AI</p>
-          <p>Declarative Routing · React Router v7</p>
+      <footer className="hidden border-t border-white/10 bg-white/5">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-6 text-xs text-neutral-400">
+          <p>
+            © {new Date().getFullYear()} Cangyun AI · Multi-Modal RAG Console
+          </p>
+          <p>Streaming Retrieval · NestJS Orchestration</p>
         </div>
       </footer>
     </div>

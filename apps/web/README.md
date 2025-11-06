@@ -1,73 +1,57 @@
-# React + TypeScript + Vite
+# Cangyun Web Console
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite 应用，为 Cangyun 分山劲多模态战术台提供前端界面。当前版本聚焦 Phase 1 文字 RAG 能力：流式问答、引用展示与知识检索配置；后续将承载图像循环识别与视频分析入口。
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React 19 + `react-router@7` 提供极简导航骨架。
+- Tailwind CSS + shadcn/ui components via the shared `@cangyun-ai/ui` package.
+- SSE-based chat client parsing streamed deltas and source metadata.
+- TypeScript path aliases defined in `tsconfig.base.json`.
 
-## React Compiler
+## Getting Started
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+```bash
+# From the repository root
+pnpm install
+pnpm run build:common  # build shared packages
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+# Dev server (served on Vite default port 5173, proxied to backend for /api)
+pnpm run dev:web
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The Vite config proxies `/api` to `http://localhost:3000`, so start the backend (`pnpm run dev:backend`) in parallel.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x';
-import reactDom from 'eslint-plugin-react-dom';
+## Available Routes
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+- `/` – Landing view describing the console and linking to documentation.
+- `/chat` – Streaming chat assistant with adjustable `topK` controls, citation list, and SSE status feedback.
+- `*` – Friendly 404 page via `NotFoundRoute`.
+
+## Project Structure
+
 ```
+src/
+  app/           // Router, layout, and shared route wiring
+  features/
+    chat/        // ChatRoute, MessageBubble, SSE client utilities, types
+    home/        // Marketing / hero content for the console entry
+  assets/        // Static assets
+```
+
+## Development Guidelines
+
+- Follow the patterns documented in `AGENTS.md` (React: derive data in render, keep effects for external sync only).
+- Shared UI components live in `@cangyun-ai/ui`; avoid local duplicates unless prototyping.
+- Use `streamChat` utility to interact with the backend SSE endpoint; it handles partial events, errors, and completion states.
+
+## Testing & Linting
+
+```bash
+pnpm --filter web run lint       # ESLint + Prettier
+pnpm --filter web run build      # Vite production build check
+```
+
+Add Vitest or Playwright suites under `src/features/*` as the UI surface evolves.
+
+For architecture context and roadmap milestones, consult `docs/development-plan.md` and `docs/rfc-001-architecture-design.md`.

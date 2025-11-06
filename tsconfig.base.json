@@ -23,6 +23,7 @@
       "@cangyun-ai/router": ["./apps/common/router/src"],
       "@cangyun-ai/types": ["./apps/common/types/src"],
       "@cangyun-ai/ui": ["./apps/common/ui/src"],
+      "@cangyun-ai/ui/components/*": ["./apps/common/ui/src/components/ui/*"],
       "@cangyun-ai/utils": ["./apps/common/utils/src"]
     }
   }

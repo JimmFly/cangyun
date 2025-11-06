@@ -29,3 +29,12 @@ coverage/
 # Env
 .env
 .env.*.local
+.env.local
+
+
+# Generated datasets
+tmp/
+
+# Docker volumes
+docker/postgres-data/
+docker/redis-data/
