@@ -1,70 +1,83 @@
 # Cangyun Backend (NestJS)
 
-NestJS 11 service that powers the Cangyun 分山劲 RAG agent. It exposes chat endpoints, knowledge ingestion APIs, and an AI provider abstraction layered over OpenAI (extensible to future vendors).
+> **CN**：NestJS 11 服务，提供多 Agent RAG Chat、知识入库 API、语雀/攻略站工具抽象，并以 Vercel AI SDK 封装 OpenAI（未来可扩展到其他模型）。  
+> **EN**: NestJS 11 service powering the multi-agent RAG chat endpoint, knowledge ingestion APIs, and Yuque/guide tooling, built on top of the Vercel AI SDK for OpenAI with future-friendly hooks.
 
-## Key Modules
+## 模块概览 · Module Overview
 
-- `config` – zod-validated env loader with `.env.local` support and typed accessors.
-- `database` – PostgreSQL connection pool (pgvector enabled) shared across repositories.
-- `ai` – Provider-agnostic facade implemented with the Vercel AI SDK for chat + embeddings.
-- `knowledge` – Ingestion and retrieval services backed by `knowledge_documents` and `knowledge_chunks` tables.
-- `guide` – 当前赛季白皮书查询与摘要服务，通过 Perplexity 定位 `GUIDE_BASE_URL` 下的最新攻略。
-- `chat` – SSE endpoint (`POST /api/v1/chat`) that orchestrates retrieval and streams assistant responses with source metadata.
-- `cangyun` – Perplexity 驱动的语雀苍云站内搜索与正文抓取工具，供聊天模型按需调用。
+| 模块 / Module | 描述 / Description                                                                                                                                                                                                                     |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`      | **CN**：zod 校验的环境加载器，暴露 typed `AppConfig`。<br/>**EN**: zod-validated env loader exposing typed `AppConfig`.                                                                                                                |
+| `database`    | **CN**：pg Pool/Client 管理，启用 `pgvector` 扩展。<br/>**EN**: PostgreSQL pool/client helpers with `pgvector` enabled.                                                                                                                |
+| `ai`          | **CN**：AI Provider 抽象（目前实现 `OpenAiProvider`），支持文本生成、流式输出、向量嵌入。<br/>**EN**: AI provider abstraction (`OpenAiProvider`) handling text generation, streaming, and embeddings.                                  |
+| `knowledge`   | **CN**：文档 upsert、chunk 替换、pgvector 检索，支持嵌入降级。<br/>**EN**: Document upsert, chunk replacement, pgvector search with lexical fallback.                                                                                  |
+| `chat`        | **CN**：多 Agent（KnowledgeAgent + ExternalAgent + CoordinatorAgent）并行搜索、SSE 流式推理、sources/status 事件。<br/>**EN**: Multi-agent orchestration (knowledge/external/coordinator), SSE streaming, `sources` + `status` events. |
+| `cangyun`     | **CN**：Perplexity 驱动的语雀/剑三魔盒/每日攻略限定搜索与页面抓取，带缓存与域名白名单。<br/>**EN**: Perplexity-backed search constrained to Yuque/JX3Box/Xoyo plus cached page fetching with strict whitelists.                        |
+| `guide`       | **CN**：当前赛季白皮书定位：Perplexity 查询 + 站内 API/爬虫降级。<br/>**EN**: Current-season whitepaper discovery via Perplexity with site API/scrape fallbacks.                                                                       |
 
-## Prerequisites
+## 运行条件 · Requirements
 
-- PostgreSQL 15+ with `pgvector` extension.
-- Environment variables (see root `.env.example`): `DATABASE_URL`, `OPENAI_API_KEY`, `PERPLEXITY_API_KEY`, `GUIDE_BASE_URL`, `GUIDE_WHITEPAPER_KEYWORDS` (optional), `YUQUE_TOKEN`, etc.
-- Run `backend/migrations/0001_init.sql` to create the knowledge schema before serving requests.
+- **CN**：PostgreSQL 15+（启用 `CREATE EXTENSION IF NOT EXISTS vector`）、`DATABASE_URL`、`OPENAI_API_KEY`、`PERPLEXITY_API_KEY`（若需联网搜索）、可选 Redis/S3。  
+  **EN**: PostgreSQL 15+ with `vector` extension, `DATABASE_URL`, `OPENAI_API_KEY`, `PERPLEXITY_API_KEY` (for online search), optional Redis/S3 endpoints.
+- **CN**：所有关键变量在 `.env.example` 中列出，`backend/src/config/env.validation.ts` 会在缺失时阻止启动。  
+  **EN**: `.env.example` lists every variable; `env.validation.ts` aborts boot when required values are missing.
 
-## Development
+## 本地开发 · Local Development
 
 ```bash
-# Install workspace dependencies and build shared packages from repo root
+# 在仓库根目录安装依赖与公共包
 pnpm install
 pnpm run build:common
 
-# Spin up infrastructure (optional)
+# （可选）启动基础设施
 docker compose up -d postgres redis
 
-# Start the backend in watch mode
-pnpm run dev:backend  # alias for pnpm --filter cangyun-backend run dev
+# 启动后端
+pnpm run dev:backend          # ts-node-dev + watch
 
-# Run linting, type checks, and tests
+# 质量检查
 pnpm --filter cangyun-backend run lint
 pnpm --filter cangyun-backend run test
 pnpm --filter cangyun-backend run test:cov
 ```
 
-## Core Endpoints
+## API · Interfaces
 
-| Method | Path                          | Description                                                                                                                                                                                                 |
-| ------ | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST` | `/api/v1/knowledge/documents` | Upsert a document and chunk payload; optional embedding generation.                                                                                                                                         |
-| `GET`  | `/api/v1/knowledge/documents` | List indexed documents (id, title, metadata).                                                                                                                                                               |
-| `POST` | `/api/v1/chat`                | Streams assistant responses via SSE；自动暴露 `cangyun_search` / `cangyun_fetch_page` / `fetch_current_season_guide` 工具，并在 sources 事件里返回引用（若配置 `GUIDE_BASE_URL`，会附带当前赛季白皮书链接） |
+| Method | Path                          | 描述 / Description                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` | `/api/v1/chat`                | **CN**：接受 `{ question, history?, topK? }`，并以 `text/event-stream` 输出 `delta`（文本）、`sources`（引用）、`status`（Agent 状态）、`error`。网络中断后会自动续写，最多重试 2 次。<br/>**EN**: Accepts `{ question, history?, topK? }` and streams `delta`, `sources`, `status`, and `error` events over SSE with auto-resume (up to 2 retries). |
+| `GET`  | `/api/v1/knowledge/documents` | **CN**：列出 `knowledge_documents`，含 metadata/version。<br/>**EN**: Lists `knowledge_documents` with metadata/version info.                                                                                                                                                                                                                        |
+| `POST` | `/api/v1/knowledge/documents` | **CN**：写入文档及 chunks；`generateEmbeddings=true` 时服务端调用 OpenAI 向量化（失败时降级）。<br/>**EN**: Upserts documents + chunks; set `generateEmbeddings=true` to trigger server-side embeddings with graceful fallback.                                                                                                                      |
 
-The knowledge search combines pgvector similarity with pg full-text ranking. When embedding generation fails, the service falls back to lexical ranking and logs a warning.
+### Chat Streaming Notes
 
-启用 `PERPLEXITY_API_KEY` 后，聊天流程会在知识库不足时使用 Perplexity 搜索语雀苍云空间，并可调用 `cangyun_fetch_page` 抓取正文供模型核实与引用。
+- **CN**：`ChatService` 并行启动 `KnowledgeAgentService`（pgvector 搜索）与 `ExternalAgentService`（Perplexity 限域搜索），随后由 `CoordinatorAgentService` 依据 system prompt 合成答案；`guardStream` 负责记录 delta 数量并在网络错误时保存已生成内容。  
+  **EN**: `ChatService` runs `KnowledgeAgentService` (pgvector) and `ExternalAgentService` (Perplexity) in parallel before `CoordinatorAgentService` synthesizes the answer; `guardStream` tracks deltas and buffers text for resume-on-network-failure.
+- **CN**：Agent 状态事件形如 `{ type: 'status', step, label, agent, tool }`，前端的 ChainOfThought 组件基于这些事件渲染进度。  
+  **EN**: Agent status payloads look like `{ type: 'status', step, label, agent, tool }` and feed the frontend ChainOfThought timeline.
 
-## Guide & External Search
+### External Search & Guide Tools
 
-- `GuideService` 依赖 `GUIDE_BASE_URL` + `GUIDE_WHITEPAPER_KEYWORDS` + `PERPLEXITY_API_KEY`，通过 Perplexity 将搜索范围限制在攻略站域名下，并返回最新赛季白皮书链接与正文摘要。未配置 API Key 时，该工具自动禁用。
-- `CangyunSearchService` 内置域名/路径白名单（语雀苍云空间、剑三魔盒、每日攻略），最多返回 10 条候选并缓存 30 分钟；`cangyun_fetch_page` 会抓取命中页面正文（去除脚本/样式）并限制在 8k 字符以内。
-- 两个工具都会在成功响应时通过 `registerSource` 将引用注入 SSE `sources` 事件，前端引用面板无需额外查询即可展示外部文档。
+- **CN**：`CangyunSearchService` 通过 `cangyun_search`/`cangyun_fetch_page` 工具向 AI SDK 暴露联网能力；结果缓存 30 分钟，正文缓存 24 小时，自动过滤非白名单域名。  
+  **EN**: `CangyunSearchService` exposes `cangyun_search` and `cangyun_fetch_page` tools to the AI SDK, caching search results for 30 minutes and fetched pages for 24 hours while enforcing whitelisted domains.
+- **CN**：`GuideService` 可根据 `GUIDE_BASE_URL` + `GUIDE_WHITEPAPER_KEYWORDS` 精确搜索赛季白皮书，若 Perplexity 不可用则尝试站内 API 或 Playwright 抓取。  
+  **EN**: `GuideService` targets the season whitepaper at `GUIDE_BASE_URL` with `GUIDE_WHITEPAPER_KEYWORDS`, falling back to site APIs or Playwright scraping when Perplexity is unavailable.
 
-## Ingestion Workflow
+## 知识入库 · Knowledge Ingestion
 
-- Use `scripts/knowledge/ingest-yuque.ts` from the repo root to scrape Yuque 公共页面并生成 Markdown（基于 Playwright，图片/Canvas 会额外截屏写入 `tmp/knowledge/images`，可通过 `YUQUE_OCR` 控制是否执行 Tesseract OCR）。
-- Run `pnpm run ingest:markdown` to parse the exported Markdown, normalize headings/frontmatter, chunk content, and call `/api/v1/knowledge/documents` with `generateEmbeddings=true`（传递 `--no-embeddings` 可跳过向量生成）。
-- 直接调用 API 时，同样可以通过请求体上的 `generateEmbeddings` 字段请求或跳过向量生成；OpenAI 凭证会在服务器端使用。
+1. **CN**：运行 `pnpm run ingest:yuque` 生成 `tmp/knowledge/*.md` 与图片；脚本会监听 sheet API 响应、OCR Canvas，并写入 frontmatter。  
+   **EN**: `pnpm run ingest:yuque` scrapes Yuque into `tmp/knowledge/*.md` plus images, capturing sheet payloads and canvas OCR with frontmatter metadata.
+2. **CN**：执行 `pnpm run ingest:markdown`，脚本会格式化 Markdown、分块（按 section/paragraph）、计算 tokens，并调用 `/api/v1/knowledge/documents`（默认 `generateEmbeddings=true`）。  
+   **EN**: `pnpm run ingest:markdown` normalizes Markdown, chunks by section/paragraph with token counts, and POSTs to `/api/v1/knowledge/documents` (embedding generation on by default).
+3. **CN**：服务端存储逻辑：`KnowledgeService` 先 upsert 文档，再 `replaceChunks`（事务删除旧 chunk → 批量插入新 chunk，必要时写入 `vector` 字面量）。  
+   **EN**: Server flow: `KnowledgeService` upserts the document, then `replaceChunks` transactionally deletes/reinserts chunks, persisting vector literals when embeddings exist.
 
-## Architecture Notes
+## 调试提示 · Debugging Tips
 
-- Controllers remain thin and offload logic to services (Domain-first).
-- Module providers are registered via tokens for future swaps (e.g., move to Pinecone).
-- All DTO payloads use zod schemas; invalid requests return 400 with details.
+- **CN**：将 `NODE_ENV=development` 可解锁详细日志（包括 Perplexity 原始响应片段、检索命中数、向量降级警告）。  
+  **EN**: Set `NODE_ENV=development` to see verbose logs such as raw Perplexity snippets, retrieval hit counts, and vector-fallback warnings.
+- **CN**：若 SSE 流被代理截断，可留意 `ChatStreamError`（`STREAM_NETWORK_ERROR`）日志；前端会收到错误并尝试续写。  
+  **EN**: If proxies terminate SSE, watch for `ChatStreamError` (`STREAM_NETWORK_ERROR`) logs—the frontend surfaces the error and automatically resumes when partial content exists.
 
-For a full system overview, see `docs/rfc-001-architecture-design.md` and the active timeline in `docs/development-plan.md`.
+更多上下文请参阅仓库根目录的 `README.md` 与 `docs/` 文档。  
+For broader context, see the repo root `README.md` and the `docs/` folder.

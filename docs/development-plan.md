@@ -1,68 +1,124 @@
-# Cangyun Multi-Modal RAG Agent 开发计划
+# Cangyun Multi-Modal RAG Agent 开发计划 · Development Plan
 
-## 当前状态概览
+## 当前状态概览 · Current Snapshot
 
-- Monorepo 结构、Husky、ESLint、Prettier 与 `pnpm` workspace 均已落地，`pnpm run dev` 可以同时启动 web 与 backend；型别配置统一在根 `tsconfig`。
-- 后端完成 `AppConfigModule`、`AiModule`、`KnowledgeModule`、`ChatModule`、`GuideModule` 与 `CangyunModule` 的串联，SSE `/api/v1/chat` 正在提供问答能力，并根据配置调用外部攻略站工具。
-- 前端 `apps/web` 的 `ChatRoute` 通过自定义 `CustomChatTransport` 解析 SSE，包含 topK 选择、引用面板、流式状态与 `stop()` 中断。
-- 知识摄取脚本（Yuque 抓取 + Markdown 导入）已能输出结构化 Markdown、表格截图/OCR，并用 `pnpm run ingest:markdown` 自动切块、写入 `/api/v1/knowledge/documents`。
+- **CN**：Monorepo（pnpm workspace + Husky + ESLint + Prettier）稳定运行，`pnpm run dev` 可并行启动 web 与 backend；TypeScript 项目引用由根 `tsconfig` 统一管理。  
+  **EN**: The pnpm workspace (with Husky/ESLint/Prettier) runs cleanly, `pnpm run dev` starts both the web and backend stacks, and project references are managed through the root `tsconfig`.
+- **CN**：后端已串联 `AppConfigModule`、`AiModule`、`KnowledgeModule`、`ChatModule`、`GuideModule`、`CangyunModule`，`/api/v1/chat` 通过多 Agent（知识库 + Perplexity + 协调）输出 SSE，含引用与 Agent 状态事件。  
+  **EN**: The backend wires `AppConfigModule`, `AiModule`, `KnowledgeModule`, `ChatModule`, `GuideModule`, and `CangyunModule`; `/api/v1/chat` runs the multi-agent (knowledge + Perplexity + coordinator) pipeline and streams SSE with references and agent-status events.
+- **CN**：`apps/web` 的 `ChatRoute` 采用 `CustomChatTransport` 处理 `sources/delta/status/error`，支持 topK 选择、引用抽屉、Agent 进度链、流式停止。  
+  **EN**: `apps/web` wraps SSE handling inside `CustomChatTransport`, enabling topK selection, citation drawers, agent timelines, and stop controls.
+- **CN**：知识摄取脚本（Yuque + Markdown）可抓取 Canvas/OCR、解析 sheet JSON，并调用 `/api/v1/knowledge/documents` 生成 pgvector 索引。  
+  **EN**: The Yuque + Markdown scripts scrape canvas/OCR data, parse sheet JSON, and invoke `/api/v1/knowledge/documents` to build pgvector indexes.
 
-## 进度更新（近期）
+## 近期进度 · Recent Updates
 
-- 新增 `GuideModule` + `CangyunModule`：后端会在聊天流中暴露 `fetch_current_season_guide`、`cangyun_search`、`cangyun_fetch_page` 工具，使用 Perplexity 将搜索限定在 `GUIDE_BASE_URL` / 语雀苍云 / 剑三魔盒 / 每日攻略域名，并缓存 30 分钟。
-- `ChatService` 增强检索：根据“山海源流”“弓月城”等关键词扩充 query，汇总历史、限制工具调用轮次，并在系统提示中写入最新赛季、怒气与填充技能背景。
-- Web 端切换自定义 `CustomChatTransport`，统一处理 SSE `sources/delta/error` 事件，提供 topK 下拉、流式状态提示与停止按钮，引用面板实时从 transport 获取 Source 列表。
-- `scripts/knowledge/ingest-yuque.ts` 捕获 sheet API 响应、写入 frontmatter、对 Canvas 表格截图 + OCR；`scripts/knowledge/ingest-markdown.ts` 负责规范 Markdown、切 chunk、分批调用 `/api/v1/knowledge/documents` 并透出导入进度。
-- `.env.example`、配置模块与 README 系统化记录了 `GUIDE_*`、`PERPLEXITY_API_KEY`、S3/OCR 等变量，zod 校验会在缺失关键凭证时立即终止。
-- Docker Compose（pgvector + Redis）、DatabaseModule、Vercel AI SDK provider 已可用；CI/CD、`/healthz`、全局异常过滤、速率限制仍待实现。
-- 技能系数汇总的查询仍缺乏权威数据来源，暂缓实现并待后续排期。
+1. **CN**：多 Agent ChatService 支持网络中断续写、查询增强（奇穴/副本关键词）、sources 列表合并外部搜索结果。  
+   **EN**: ChatService now resumes after network failures, enriches queries (e.g., talent/raid keywords), and merges external references into the SSE `sources`.
+2. **CN**：`CangyunSearchService`/`GuideService` 引入 Perplexity 联网搜索，限定域名并缓存 30 min；`cangyun_fetch_page` 对正文做 8k 字符截断。  
+   **EN**: `CangyunSearchService` and `GuideService` leverage Perplexity with domain whitelists, 30‑minute caches, and 8k-character page truncation.
+3. **CN**：前端 Chat UI 增加 Agent 进度链、消息复制/重试、topK 下拉、引用标签、错误卡片。  
+   **EN**: The chat UI gained agent progress chains, copy/regenerate actions, topK selector, citation labels, and inline error cards.
+4. **CN**：`ingest-yuque.ts` 捕获 sheet API 响应并写入 frontmatter，`ingest-markdown.ts` 规范标题/列表/表格并支持 `KNOWLEDGE_MAX_TOKENS`。  
+   **EN**: `ingest-yuque.ts` records sheet payloads in frontmatter, while `ingest-markdown.ts` normalizes headings/lists/tables and obeys `KNOWLEDGE_MAX_TOKENS`.
 
-## Phase 1（W1–W6）：文字 RAG MVP
+## Phase 1（W1–W6）· 文字 RAG MVP
 
-1. **基础设施**
-   - 新建 GitHub Actions 工作流（lint/typecheck/test/build），补充 `.env.example`、本地运行指南。
-   - 接入 OpenTelemetry、Sentry（留空 DSN），提供 `/healthz`、全局异常过滤、基于 Redis 的速率限制。
-2. **AI Provider 抽象**
-   - 在 `backend/src/ai` 实现 OpenAI 封装（`generateText`、`embed`），通过 `apps/common/config` 暴露配置。
-3. **知识库管线**
-   - 在 `scripts/` 添加语雀同步脚本：拉取 → 清洗 → 切分（200-400 tokens）→ 上传 PG+pgvector。
-   - 采用 Prisma/Drizzle 管理数据库 schema，附带 `docker-compose`（Postgres + pgvector）供本地调试。
-4. **Chat 模块**
-   - 新建 `chat` 模块：检索-生成编排、引用溯源、SSE 输出；前端实现消息列表、引用展示、错误回退。
-   - 构建黄金问答集，编写 Jest 集成测试 + Vitest 组件测试。
+### ⚙️ 基建 / Infrastructure
 
-**交付标准**：`pnpm run check` 全绿，前端可与后端对话并展示引用，知识库完成首轮导入。
+- [x] **CN**：Monorepo、pnpm、lint-staged、Husky、Docker Compose（Postgres+Redis）。  
+       **EN**: Workspace scaffolding, lint-staged, Husky, and Docker Compose (Postgres + Redis).
+- [ ] **CN**：GitHub Actions（lint/typecheck/test/build）、`/healthz`、全局异常过滤、统一日志。  
+       **EN**: GitHub Actions (lint/typecheck/test/build), `/healthz`, global exception filters, unified logging.
+- [ ] **CN**：OpenTelemetry + Sentry + Redis 速率限制。  
+       **EN**: OpenTelemetry + Sentry instrumentation plus Redis-based rate limiting.
 
-## Phase 2（W7–W12）：图像识别与循环统计
+### 🤖 AI Provider & Config
 
-1. **图像接口**
-   - 后端 `/api/v1/analyze/image` 支持 multipart 上传、临时存储、TTL 清理；前端实现拖拽上传 + 预览。
-2. **OCR 与技能识别**
-   - 抽象 OCR Provider（优先云 API，准备 Tesseract fallback），建立技能图标模板库 + Vision 兜底。
-   - 输出结构化 `RotationStats`，关联知识库生成建议。
-3. **循环分析展示**
-   - Web 端渲染分析结果（关键动作、得分、建议牌），提供引用链接。
-4. **质量保障**
-   - 建立 30+ 截图回归集，集成测试覆盖核心路径；完善媒体上传安全策略（类型白名单、大小限制）。
+- [x] **CN**：`AIService` + `OpenAiProvider`（文本生成、流式、嵌入、工具调用）。  
+       **EN**: `AIService` + `OpenAiProvider` covering generation, streaming, embeddings, and tool hooks.
+- [ ] **CN**：多 Provider 适配（DeepSeek/本地模型）与成本/延迟指标。  
+       **EN**: Additional providers (DeepSeek/local) and cost/latency metrics.
 
-**交付标准**：图片识别准确率 ≥90%，循环分析得分与基准对齐，CI 覆盖新增测试。
+### 📚 知识库 / Knowledge Pipeline
 
-## Phase 3（W13–W16）：视频分析与高级能力
+- [x] **CN**：语雀抓取脚本（Playwright、OCR、Canvas 截图、sheet 捕获）。  
+       **EN**: Yuque scraping with Playwright, OCR, canvas screenshots, and sheet capture.
+- [x] **CN**：Markdown 导入器（格式化、chunk、token 计数、批量 API 调用、optional embeddings）。  
+       **EN**: Markdown importer with formatting, chunking, token counts, batched API calls, optional embeddings.
+- [x] **CN**：pgvector + Full Text 混合检索（knowledge repository）。  
+       **EN**: Hybrid pgvector + full-text retrieval inside the knowledge repository.
+- [ ] **CN**：黄金问答集 / 检索评测脚本。  
+       **EN**: Golden QA set and retrieval evaluation scripts.
 
-1. **异步任务流**
-   - `/api/v1/analyze/video` 返回 `taskId`，Redis Streams Worker 执行 FFmpeg 抽帧、清洗、事件识别。
-2. **时间轴分析引擎**
-   - 构建循环模板对比、问题定位、建议生成；结果存储并附 TTL。
-3. **前端报告**
-   - 实现时间轴可视化、关键事件列表、报告导出；提供轮询或 SSE 推送更新。
-4. **性能与风控**
-   - 设定并发阈值、重试策略、成本监控；进行 2min/1080p 压测，确保 p95 < 5 分钟。
+### 💬 Chat 模块 / Chat Module
 
-**交付标准**：视频任务闭环可用、评分准确度 ≥80%，监控报警上线。
+- [x] **CN**：`/api/v1/chat` SSE（多 Agent、sources/status 事件、网络续写、topK 参数、system prompt 加强）。  
+       **EN**: `/api/v1/chat` SSE with multi-agent orchestration, `sources/status` events, resume-on-disconnect, topK parameter, and reinforced system prompt.
+- [x] **CN**：Web Chat UI（自定义 transport、Agent 进度链、引用展示、错误提示、stop 控件）。  
+       **EN**: Web chat UI with custom transport, agent chain, citation view, error alerts, and stop control.
+- [ ] **CN**：答案缓存（Redis）、检索失败 fallback 监控、对话上下文评估。  
+       **EN**: Answer caching (Redis), search-failure monitoring, and dialogue-context evaluation.
 
-## 横向工作流
+### 📄 文档 / Docs
 
-- 文档：持续更新 `docs/` 下的 RFC、开发指南，并在 `README.md` 和 `AGENTS.md` 中保持链接同步。
-- 安全合规：引入文件扫描、审计日志、速率限制、隐私声明。
-- 可观测性：统一日志格式（JSON），定义指标命名规范（chat_latency、image_latency 等）。
-- Milestone Review：分别在第 2、6、12 周进行范围检查，必要时调整后续迭代计划。
+- [x] **CN**：README、Backend README、AGENTS、开发计划、多模态设计、架构 RFC、任务清单。  
+       **EN**: README, backend README, AGENTS, development plan, multi-modal design doc, architecture RFC, and task tracker.
+- [ ] **CN**：CONTRIBUTING.md、环境变量参考、API 示例。  
+       **EN**: CONTRIBUTING guide, env reference, and API samples.
+
+**Phase 1 交付标准 / Definition of Done**
+
+- **CN**：`pnpm run check` 全绿；前端可与后端对话、展示引用；知识库完成首轮导入。
+- **EN**: `pnpm run check` passes; frontend converses with backend and shows citations; first knowledge ingestion cycle completed.
+
+## Phase 2（W7–W12）· 图像识别与循环统计
+
+### 上传与接口 / Upload & API
+
+- [ ] **CN**：Web 端图片上传（拖拽 + 类型选择 + 预览）。  
+       **EN**: Web drag‑and‑drop uploads with type selector and preview.
+- [ ] **CN**：`/api/v1/analyze/image` 多部分上传、返回结构化分析。  
+       **EN**: `/api/v1/analyze/image` multipart endpoint returning structured analysis.
+
+### 技能识别 / Skill Detection
+
+- [ ] **CN**：OCR Provider 抽象（云服务优先，Tesseract 兜底）。  
+       **EN**: OCR provider abstraction (cloud-first, Tesseract fallback).
+- [ ] **CN**：技能图标模板匹配 + Vision fallback + 知识联动。  
+       **EN**: Icon template matching with Vision fallback and knowledge linking.
+- [ ] **CN**：Rotation Stats 结构（面板解析、奇穴建议、循环评分）。  
+       **EN**: Rotation stats schema covering panel parsing, talent advice, and rotation scoring.
+
+### 质量与安全 / Quality & Safety
+
+- [ ] **CN**：临时媒体存储 + TTL 清理、类型白名单、30+ 截图回归集。  
+       **EN**: Temporary media storage with TTL cleanup, MIME whitelists, and 30+ screenshot regression set.
+- [ ] **CN**：Vitest/Playwright 端到端测试。  
+       **EN**: Vitest/Playwright end-to-end coverage.
+
+## Phase 3（W13–W16）· 视频分析与高级能力
+
+### 异步任务 / Asynchronous Pipeline
+
+- [ ] **CN**：`/api/v1/analyze/video` → `taskId`，Redis Streams Worker 执行 FFmpeg 抽帧、事件识别。  
+       **EN**: `/api/v1/analyze/video` returning `taskId` with Redis Streams workers orchestrating FFmpeg sampling and event recognition.
+
+### 分析引擎 / Analysis Engine
+
+- [ ] **CN**：时间轴构建、循环模板比对、问题定位、报告存储（TTL）。  
+       **EN**: Timeline reconstruction, template comparison, issue detection, and TTL-bound report storage.
+- [ ] **CN**：Web 报告（时间轴、关键事件、导出、SSE/轮询更新）。  
+       **EN**: Web reports with timelines, key events, export, and SSE/polling updates.
+
+### 性能与风控 / Performance & Risk
+
+- [ ] **CN**：并发阈值、重试策略、成本监控、p95 < 5min（2min/1080p）。  
+       **EN**: Concurrency thresholds, retry logic, cost monitors, and p95 < 5 min for 2‑min/1080p videos.
+- [ ] **CN**：匿名配额 + 速率限制 + 审计日志。  
+       **EN**: Anonymous quotas, rate limiting, and audit logging.
+
+## 横向工作流 · Cross-Cutting Tracks
+
+- **CN**：安全（文件扫描、白名单、隐私声明）；可观测性（结构化日志、指标、Tracing）；Milestone 回顾（第 2/6/12 周）。
+- **EN**: Security (file scanning, whitelists, privacy notice); observability (structured logs, metrics, tracing); milestone reviews (week 2/6/12).
