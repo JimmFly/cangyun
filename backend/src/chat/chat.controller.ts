@@ -25,22 +25,110 @@ export class ChatController {
     @Res() res: Response,
   ): Promise<void> {
     const requestId = randomUUID();
-    this.logger.log(
-      `Chat request ${requestId} started (topK=${body.topK ?? 6})`,
-    );
+    // 仅在开发环境记录请求开始日志
+    if (process.env.NODE_ENV === 'development') {
+      this.logger.log(
+        `Chat request ${requestId} started (topK=${body.topK ?? 6})`,
+      );
+    }
     res.writeHead(200, SSE_HEADERS);
     res.flushHeaders?.();
 
     try {
-      const { stream, sources } = await this.chatService.createChatStream(body);
+      // 发送 Agent 状态事件的回调
+      const sendStatus = (status: {
+        step: string;
+        label: string;
+        tool?: string;
+        agent?: string;
+      }) => {
+        res.write(
+          `data: ${JSON.stringify({ type: 'status', data: status })}\n\n`,
+        );
+      };
+
+      const { stream, sources } = await this.chatService.createChatStream(
+        body,
+        sendStatus,
+      );
 
       res.write(
         `data: ${JSON.stringify({ type: 'sources', data: sources })}\n\n`,
       );
 
-      for await (const delta of stream) {
+      let hasDelta = false;
+
+      try {
+        for await (const delta of stream) {
+          if (typeof delta === 'string' && delta.trim().length > 0) {
+            hasDelta = true;
+          }
+          res.write(
+            `data: ${JSON.stringify({ type: 'delta', data: delta })}\n\n`,
+          );
+        }
+      } catch (streamError) {
+        // 检查是否是网络中断错误
+        const isNetworkError =
+          streamError instanceof Error &&
+          (streamError.message === 'terminated' ||
+            streamError.message.includes('terminated') ||
+            streamError.message.includes('网络连接中断') ||
+            streamError.name === 'AbortError' ||
+            streamError.message.includes('fetch failed') ||
+            streamError.message.includes('ECONNREFUSED') ||
+            streamError.message.includes('ETIMEDOUT'));
+
+        if (isNetworkError) {
+          this.logger.warn(
+            `Chat request ${requestId} stream interrupted (network error): ${
+              streamError instanceof Error
+                ? streamError.message
+                : String(streamError)
+            }`,
+          );
+        } else {
+          this.logger.error(
+            `Chat request ${requestId} stream error: ${
+              streamError instanceof Error
+                ? streamError.message
+                : String(streamError)
+            }`,
+            streamError instanceof Error ? streamError.stack : undefined,
+          );
+        }
+
+        // 如果流出错但有 sources，仍然尝试生成 fallback
+        if (sources.length > 0 && !hasDelta) {
+          this.logger.warn(
+            `Chat request ${requestId} stream failed but has sources (${sources.length}), generating fallback`,
+          );
+        }
+
+        // 如果是网络错误且已经有部分内容，发送错误消息给前端
+        if (isNetworkError && hasDelta) {
+          res.write(
+            `data: ${JSON.stringify({
+              type: 'delta',
+              data: '\n\n⚠️ 网络连接中断，回答可能不完整。',
+            })}\n\n`,
+          );
+        }
+      }
+
+      if (!hasDelta) {
+        this.logger.warn(
+          `Chat request ${requestId} completed without AI deltas (sources: ${sources.length})`,
+        );
+
+        // 如果有 sources，说明有资料，应该能够回答
+        // 这种情况可能是 AI 模型的问题或者流被提前结束
+        const fallback =
+          sources.length === 0
+            ? '当前资料不足或外部搜索未返回有效内容，暂时无法给出可靠答案。建议换个问法或稍后重试。'
+            : '抱歉，AI 未能生成回答。虽然已找到相关资料，但生成过程出现问题。请稍后重试，或尝试换个问法。';
         res.write(
-          `data: ${JSON.stringify({ type: 'delta', data: delta })}\n\n`,
+          `data: ${JSON.stringify({ type: 'delta', data: fallback })}\n\n`,
         );
       }
 

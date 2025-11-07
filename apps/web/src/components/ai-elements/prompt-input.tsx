@@ -772,15 +772,80 @@ export const PromptInputTextarea = ({
   const controller = useOptionalPromptInputController();
   const attachments = usePromptInputAttachments();
   const [isComposing, setIsComposing] = useState(false);
+  const compositionRef = useRef(false);
+  const compositionEndTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // 处理中文输入法组合状态
+  const handleCompositionStart = () => {
+    // 清除之前的定时器
+    if (compositionEndTimerRef.current) {
+      clearTimeout(compositionEndTimerRef.current);
+      compositionEndTimerRef.current = null;
+    }
+    setIsComposing(true);
+    compositionRef.current = true;
+  };
+
+  const handleCompositionUpdate = () => {
+    // 保持组合状态
+    compositionRef.current = true;
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = () => {
+    // 延迟重置，确保 compositionend 事件完全处理完成
+    // 使用更长的延迟，确保 keydown 事件能正确检测到组合状态
+    if (compositionEndTimerRef.current) {
+      clearTimeout(compositionEndTimerRef.current);
+    }
+    compositionEndTimerRef.current = setTimeout(() => {
+      setIsComposing(false);
+      compositionRef.current = false;
+      compositionEndTimerRef.current = null;
+    }, 200); // 增加到 200ms，给输入法更多时间完成候选词选择
+  };
 
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = e => {
+    // 检查是否正在使用输入法（中文、日文、韩文等）
+    // 多重检查确保不会在输入过程中触发提交
+    const nativeEvent = e.nativeEvent as KeyboardEvent & {
+      isComposing?: boolean;
+      inputType?: string;
+    };
+
+    // 检查是否有待处理的 compositionend 定时器
+    const hasPendingCompositionEnd = compositionEndTimerRef.current !== null;
+
+    const isCurrentlyComposing =
+      isComposing ||
+      compositionRef.current ||
+      nativeEvent.isComposing === true ||
+      hasPendingCompositionEnd ||
+      // 检查输入类型，某些输入法在选词时可能不会设置 isComposing
+      nativeEvent.inputType === 'insertCompositionText';
+
     if (e.key === 'Enter') {
-      if (isComposing || e.nativeEvent.isComposing) {
+      // 如果正在输入中文，不处理 Enter 键
+      if (isCurrentlyComposing) {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
+
+      // 额外检查：如果 compositionend 刚触发，可能还在处理中
+      // 或者 compositionRef 仍然为 true
+      if (compositionRef.current || hasPendingCompositionEnd) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // Shift+Enter 换行
       if (e.shiftKey) {
         return;
       }
+      // 普通 Enter 提交
       e.preventDefault();
       e.currentTarget.form?.requestSubmit();
     }
@@ -789,7 +854,8 @@ export const PromptInputTextarea = ({
     if (
       e.key === 'Backspace' &&
       e.currentTarget.value === '' &&
-      attachments.files.length > 0
+      attachments.files.length > 0 &&
+      !isCurrentlyComposing
     ) {
       e.preventDefault();
       const lastAttachment = attachments.files.at(-1);
@@ -835,12 +901,36 @@ export const PromptInputTextarea = ({
         onChange,
       };
 
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (compositionEndTimerRef.current) {
+        clearTimeout(compositionEndTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <InputGroupTextarea
+      ref={el => {
+        textareaRef.current = el;
+        // 如果 props 中有 ref，也要传递
+        if (typeof props === 'object' && props && 'ref' in props) {
+          const refProp = props.ref;
+          if (typeof refProp === 'function') {
+            refProp(el);
+          } else if (refProp && 'current' in refProp) {
+            (
+              refProp as React.MutableRefObject<HTMLTextAreaElement | null>
+            ).current = el;
+          }
+        }
+      }}
       className={cn('field-sizing-content max-h-48 min-h-16', className)}
       name="message"
-      onCompositionEnd={() => setIsComposing(false)}
-      onCompositionStart={() => setIsComposing(true)}
+      onCompositionStart={handleCompositionStart}
+      onCompositionUpdate={handleCompositionUpdate}
+      onCompositionEnd={handleCompositionEnd}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
       placeholder={placeholder}

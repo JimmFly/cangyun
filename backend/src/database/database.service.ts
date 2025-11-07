@@ -54,7 +54,7 @@ export class DatabaseService implements OnModuleDestroy {
     const pool = this.ensurePool();
     try {
       return await pool.connect();
-    } catch (error) {
+    } catch {
       // 如果连接失败，尝试重新创建连接池
       if (this.pool) {
         try {

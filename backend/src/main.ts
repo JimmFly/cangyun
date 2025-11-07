@@ -2,12 +2,24 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
-import { Logger } from '@nestjs/common';
+import { Logger, type LogLevel } from '@nestjs/common';
+import type { RequestHandler } from 'express';
 
 async function bootstrap() {
+  const configService = new ConfigService();
+  const nodeEnv = configService.get<string>('app.nodeEnv', 'development');
+
+  // 配置日志级别：生产环境只显示 warn 和 error，开发环境显示所有日志
+  const logLevels: LogLevel[] =
+    nodeEnv === 'production'
+      ? ['error', 'warn']
+      : nodeEnv === 'test'
+        ? ['error']
+        : ['log', 'error', 'warn'];
+
   // 禁用默认的 body parser，我们将手动配置更大的限制
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    bodyParser: false, // 禁用默认的 body parser
+    logger: logLevels,
   });
 
   // 增加请求体大小限制（支持大文件导入）
@@ -17,17 +29,25 @@ async function bootstrap() {
   const expressInstance = app.getHttpAdapter().getInstance();
 
   // 配置 body parser 中间件，支持更大的请求体
-  expressInstance.use((bodyParser as any).json({ limit: '50mb' }));
+  // 类型断言：body-parser 的类型定义与运行时行为匹配
+  type BodyParser = {
+    json: (options?: { limit?: string | number }) => RequestHandler;
+    urlencoded: (options?: {
+      extended?: boolean;
+      limit?: string | number;
+    }) => RequestHandler;
+  };
+
+  const typedBodyParser = bodyParser as BodyParser;
+  expressInstance.use(typedBodyParser.json({ limit: '50mb' }));
   expressInstance.use(
-    (bodyParser as any).urlencoded({ extended: true, limit: '50mb' }),
+    typedBodyParser.urlencoded({ extended: true, limit: '50mb' }),
   );
 
-  const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port', 3000);
 
   try {
     await app.listen(port);
-    const nodeEnv = configService.get<string>('app.nodeEnv', 'development');
     Logger.log(
       `HTTP server listening on port ${port} (env: ${nodeEnv})`,
       'Bootstrap',

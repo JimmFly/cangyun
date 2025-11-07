@@ -19,8 +19,10 @@ import type { AiConfig, AppConfig } from '../config/index.js';
         switch (aiConfig.provider) {
           case 'openai':
             return new OpenAiProvider(aiConfig.openai);
-          default:
-            throw new Error(`Unsupported AI provider: ${aiConfig.provider}`);
+          default: {
+            const provider: string = aiConfig.provider;
+            throw new Error(`Unsupported AI provider: ${provider}`);
+          }
         }
       },
       inject: [ConfigService],

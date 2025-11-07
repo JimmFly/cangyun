@@ -4,30 +4,30 @@
 
 ### ⚙️ 基座与基础设施
 
-- [ ] **[infra]** 初始化 Monorepo 与 CI/CD（pnpm workspace, GitHub Actions, Lint/Test/Build）
-- [ ] **[web]** 前端脚手架 Vite + React + TS + Tailwind + shadcn/ui
-- [ ] **[api]** NestJS 基座项目 + `/healthz` + 全局验证与异常过滤
-- [ ] **[ai]** AI Provider 抽象层（OpenAI 实现 + `embed` / `generateText` / `visionAnalyze`）
+- [ ] **[infra]** 初始化 Monorepo 与 CI/CD（Monorepo/pnpm workspace 已完成，GitHub Actions 工作流待补）
+- [x] **[web]** 前端脚手架 Vite + React + TS + Tailwind + shadcn/ui（`apps/web` 路由与 Chat 界面已就绪）
+- [ ] **[api]** NestJS 基座项目 + `/healthz` + 全局验证与异常过滤（基础模块已合并，健康检查与全局管道未配置）
+- [x] **[ai]** AI Provider 抽象层（OpenAI 实现 + 文本生成/流式输出/embedding）
 - [ ] **[infra]** OpenTelemetry + Sentry 集成
 - [ ] **[infra]** 速率限制与匿名 Session 管理
 
 ### 📚 知识库系统
 
-- [ ] **[knowledge]** 语雀摄取脚本（fetch → chunk → normalize）
-- [ ] **[knowledge]** 向量索引（pgvector + OpenAI Embeddings）
-- [ ] **[knowledge]** 增量更新机制（upsert + index version）
+- [x] **[knowledge]** 语雀摄取脚本 + Markdown 导入器（Playwright → Markdown/OCR → `pnpm run ingest:markdown` 调用 `/api/v1/knowledge/documents`）
+- [x] **[knowledge]** 向量索引（pgvector + OpenAI Embeddings）
+- [x] **[knowledge]** 增量更新机制（upsert + index version）
 
 ### 💬 Chat 模块（RAG）
 
-- [ ] **[chat]** RAG 编排器与提示模板（含引用源）
-- [ ] **[chat]** SSE 流式聊天接口 `/api/v1/chat`
-- [ ] **[web]** Chat UI（消息流式渲染 + 引用来源）
+- [x] **[chat]** RAG 编排器与提示模板（集成 `fetch_current_season_guide`、`cangyun_search`、`cangyun_fetch_page` 工具并写入 sources 引用）
+- [x] **[chat]** SSE 流式聊天接口 `/api/v1/chat`
+- [x] **[web]** Chat UI（自定义 `CustomChatTransport`、消息流式渲染 + 引用来源 + topK 调节 + 立即中断）
 - [ ] **[chat/test]** 检索效果评估（黄金问答集）
 - [ ] **[chat]** 答案缓存（Redis 缓存层）
 
 ### 📄 文档与部署
 
-- [ ] **[docs]** CONTRIBUTING.md + `.env.example` + 本地运行说明
+- [ ] **[docs]** CONTRIBUTING.md + `.env.example` + 本地运行说明（README、`backend/README`、`.env.example` 已说明 Perplexity/Guide/OCR，贡献指南仍缺）
 - [ ] **[ops]** 部署流水线（Vercel + Supabase + Upstash）
 
 ---

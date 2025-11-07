@@ -139,6 +139,136 @@ function splitByParagraph(text: string, maxSize: number): string[] {
 }
 
 /**
+ * 格式化 Markdown 内容，清理和规范化格式
+ */
+function formatMarkdown(markdown: string): string {
+  let formatted = markdown;
+
+  // 1. 规范化标题层级（确保标题层级合理）
+  formatted = normalizeHeadingLevels(formatted);
+
+  // 2. 清理多余的空白行（最多保留两个连续空行）
+  formatted = formatted.replace(/\n{4,}/g, '\n\n\n');
+
+  // 3. 规范化列表格式（统一列表缩进）
+  formatted = normalizeListIndentation(formatted);
+
+  // 4. 清理行尾空白
+  formatted = formatted
+    .split('\n')
+    .map(line => line.trimEnd())
+    .join('\n');
+
+  // 5. 规范化代码块（确保代码块前后有空行）
+  formatted = formatted.replace(/([^\n])\n```/g, '$1\n\n```');
+  formatted = formatted.replace(/```\n([^\n])/g, '```\n\n$1');
+
+  // 6. 规范化链接格式（清理多余的空白）
+  formatted = formatted.replace(
+    /\[([^\]]+)\]\s*\(\s*([^)]+)\s*\)/g,
+    '[$1]($2)'
+  );
+
+  // 7. 规范化表格格式（确保表格前后有空行）
+  formatted = formatted.replace(/([^\n])\n\|/g, '$1\n\n|');
+  formatted = formatted.replace(/\|\n([^\n|])/g, '|\n\n$1');
+
+  // 8. 清理段落之间的多余空行（段落之间保留一个空行）
+  formatted = formatted.replace(/\n{3,}/g, '\n\n');
+
+  // 9. 确保文档末尾只有一个换行符
+  formatted = formatted.trimEnd() + '\n';
+
+  return formatted;
+}
+
+/**
+ * 规范化标题层级，确保层级合理（避免跳级）
+ */
+function normalizeHeadingLevels(markdown: string): string {
+  const lines = markdown.split('\n');
+  const normalized: string[] = [];
+  let lastLevel = 0;
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const text = headingMatch[2].trim();
+
+      // 如果标题层级跳跃超过1级，调整为上一级+1
+      if (level > lastLevel + 1 && lastLevel > 0) {
+        const adjustedLevel = lastLevel + 1;
+        normalized.push(`${'#'.repeat(adjustedLevel)} ${text}`);
+        lastLevel = adjustedLevel;
+      } else {
+        normalized.push(line);
+        lastLevel = level;
+      }
+    } else {
+      normalized.push(line);
+      // 如果不是标题，重置 lastLevel（允许新的标题从任意级别开始）
+      if (line.trim() && !line.match(/^[#\s*\-`|]/)) {
+        lastLevel = 0;
+      }
+    }
+  }
+
+  return normalized.join('\n');
+}
+
+/**
+ * 规范化列表缩进（统一使用2个空格）
+ */
+function normalizeListIndentation(markdown: string): string {
+  return markdown.replace(
+    /^(\s*)([-*+]|\d+\.)\s+/gm,
+    (match, indent, marker) => {
+      const indentLevel = Math.floor(indent.length / 2);
+      const normalizedIndent = '  '.repeat(indentLevel);
+      return `${normalizedIndent}${marker} `;
+    }
+  );
+}
+
+/**
+ * 解析 Markdown 文件的 frontmatter
+ */
+function parseFrontmatter(content: string): {
+  frontmatter: { createdAt?: string; updatedAt?: string };
+  body: string;
+} {
+  const frontmatter: { createdAt?: string; updatedAt?: string } = {};
+  let body = content;
+
+  // 检查是否有 frontmatter（以 --- 开头）
+  const frontmatterMatch = content.match(
+    /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/
+  );
+  if (frontmatterMatch) {
+    const frontmatterText = frontmatterMatch[1];
+    body = frontmatterMatch[2];
+
+    // 解析 frontmatter 中的键值对
+    const lines = frontmatterText.split('\n');
+    for (const line of lines) {
+      const match = line.match(/^(\w+):\s*(.+)$/);
+      if (match) {
+        const key = match[1].trim();
+        const value = match[2].trim();
+        if (key === 'createdAt') {
+          frontmatter.createdAt = value;
+        } else if (key === 'updatedAt') {
+          frontmatter.updatedAt = value;
+        }
+      }
+    }
+  }
+
+  return { frontmatter, body };
+}
+
+/**
  * 从文件名提取标题（去掉扩展名和特殊字符）
  */
 function extractTitle(filename: string, content: string): string {
@@ -164,12 +294,19 @@ async function ingestMarkdownFile(
   generateEmbeddings = true
 ): Promise<void> {
   const filename = path.basename(filePath);
-  const content = await readFile(filePath, 'utf-8');
-  const title = extractTitle(filename, content);
+  let content = await readFile(filePath, 'utf-8');
+
+  // 解析 frontmatter（如果存在）
+  const { frontmatter, body } = parseFrontmatter(content);
+
+  // 格式化 Markdown 内容
+  const formattedBody = formatMarkdown(body);
+
+  const title = extractTitle(filename, formattedBody);
   const externalId = `md-${path.basename(filePath, '.md')}`;
 
   // 分割成chunks
-  const rawChunks = splitMarkdown(content);
+  const rawChunks = splitMarkdown(formattedBody);
   const chunks = enforceTokenLimit(rawChunks, maxTokensPerChunk);
 
   if (chunks.length === 0) {
@@ -191,15 +328,46 @@ async function ingestMarkdownFile(
   // 注意：当前API会替换所有chunks，所以需要先创建文档，然后分批追加
   if (chunks.length > 50) {
     console.log(`   ⚠️  chunks数量较多(${chunks.length})，分批导入...`);
+    // 构建 metadata，包含 frontmatter 中的时间信息
+    const metadata: Record<string, unknown> = {
+      filename,
+      fileSize: formattedBody.length,
+      chunkCount: chunks.length,
+    };
+
+    // 添加时间信息到 metadata
+    if (frontmatter.createdAt) {
+      metadata.createdAt = frontmatter.createdAt;
+    }
+    if (frontmatter.updatedAt) {
+      metadata.updatedAt = frontmatter.updatedAt;
+    }
+
     await ingestMarkdownFileInBatches(
       externalId,
       title,
       filename,
       filePath,
       chunks,
-      generateEmbeddings
+      generateEmbeddings,
+      metadata
     );
     return;
+  }
+
+  // 构建 metadata，包含 frontmatter 中的时间信息
+  const metadata: Record<string, unknown> = {
+    filename,
+    fileSize: formattedBody.length,
+    chunkCount: chunks.length,
+  };
+
+  // 添加时间信息到 metadata
+  if (frontmatter.createdAt) {
+    metadata.createdAt = frontmatter.createdAt;
+  }
+  if (frontmatter.updatedAt) {
+    metadata.updatedAt = frontmatter.updatedAt;
   }
 
   // 构建请求体
@@ -208,11 +376,7 @@ async function ingestMarkdownFile(
       externalId,
       title,
       sourceUrl: `file://${filePath}`,
-      metadata: {
-        filename,
-        fileSize: content.length,
-        chunkCount: chunks.length,
-      },
+      metadata,
     },
     chunks: chunks.map((chunk, index) => ({
       content: chunk.content,
@@ -262,7 +426,8 @@ async function ingestMarkdownFileInBatches(
   filename: string,
   filePath: string,
   chunks: Chunk[],
-  generateEmbeddings: boolean
+  generateEmbeddings: boolean,
+  metadata: Record<string, unknown>
 ): Promise<void> {
   const batchSize = 50;
   let allImportedChunks: Chunk[] = [];
@@ -285,7 +450,7 @@ async function ingestMarkdownFileInBatches(
         title,
         sourceUrl: `file://${filePath}`,
         metadata: {
-          filename,
+          ...metadata,
           fileSize: chunks.reduce((sum, c) => sum + c.content.length, 0),
           chunkCount: chunks.length,
           importedChunks: allImportedChunks.length,

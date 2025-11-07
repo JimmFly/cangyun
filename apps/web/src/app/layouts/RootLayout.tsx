@@ -4,15 +4,15 @@ import { Button } from '@cangyun-ai/ui/components/ui/button';
 export function RootLayout() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-neutral-950 to-neutral-900 text-neutral-50 antialiased">
-      <header className="border-b border-white/10 bg-white/5 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-white/5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link
             to="/"
-            className="text-lg font-semibold tracking-tight text-white"
+            className="flex-shrink-0 text-lg font-semibold tracking-tight text-white"
           >
             Cangyun
           </Link>
-          <nav className="flex items-center gap-4 text-xs font-medium text-neutral-300">
+          <nav className="flex flex-shrink-0 items-center gap-3 text-xs font-medium text-neutral-300 sm:gap-4">
             <Link to="/" className="transition hover:text-white">
               方案
             </Link>
@@ -22,7 +22,7 @@ export function RootLayout() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 border-white/20 bg-white/10 text-xs text-neutral-100 hover:bg-white/20"
+              className="h-7 flex-shrink-0 border-white/20 bg-white/10 text-xs text-neutral-100 hover:bg-white/20"
               asChild
             >
               <a
@@ -37,7 +37,7 @@ export function RootLayout() {
         </div>
       </header>
 
-      <main className="mx-auto flex h-[calc(100vh-60px)] w-full max-w-4xl flex-1 px-0">
+      <main className="mx-auto flex h-[calc(100vh-60px)] w-full max-w-5xl flex-1 overflow-hidden px-0">
         <Outlet />
       </main>
 

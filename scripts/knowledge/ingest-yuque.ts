@@ -111,8 +111,22 @@ async function main() {
     page.on('response', responseListener);
 
     try {
+      // 对于 jx3.xoyo.com，需要等待更长时间让 SPA 加载完成
+      const isJx3Site = url.includes('jx3.xoyo.com');
       await page.goto(url, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(isJx3Site ? 3000 : 800);
+
+      // 对于 jx3.xoyo.com，等待文章内容加载
+      if (isJx3Site) {
+        try {
+          await page.waitForSelector(
+            '.article-content, .article-body, article, [class*="ArticleContent"]',
+            { timeout: 5000 }
+          );
+        } catch {
+          // 如果选择器未找到，继续执行
+        }
+      }
 
       const article = await extractArticle(page);
       const scriptSheets = parseAppDataScripts(article.scripts);
@@ -135,13 +149,26 @@ async function main() {
         article.sheets as InlineSheet[],
         sheetPayloads,
         canvasSections,
-        turndown
+        turndown,
+        article.createdAt,
+        article.updatedAt
       );
       const outputPath = path.join(OUTPUT_DIR, `${slug}.md`);
 
       await writeFile(outputPath, markdown, 'utf-8');
+
+      // 输出时间信息（如果有）
+      const timeInfo: string[] = [];
+      if (article.createdAt) {
+        timeInfo.push(`创建: ${article.createdAt}`);
+      }
+      if (article.updatedAt) {
+        timeInfo.push(`更新: ${article.updatedAt}`);
+      }
+      const timeStr = timeInfo.length > 0 ? ` [${timeInfo.join(', ')}]` : '';
+
       console.info(
-        `Saved ${article.title} → ${path.relative(process.cwd(), outputPath)}`
+        `Saved ${article.title} → ${path.relative(process.cwd(), outputPath)}${timeStr}`
       );
       saved.push(outputPath);
     } catch (error) {
@@ -312,6 +339,8 @@ async function extractArticle(page: Page): Promise<{
   html: string;
   sheets: InlineSheet[];
   scripts: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }> {
   return page.evaluate(() => {
     const titleSelectors = [
@@ -321,6 +350,11 @@ async function extractArticle(page: Page): Promise<{
       '.title',
       '[data-role="doc-title"]',
       '[class*="DocHeader"] h1',
+      // jx3.xoyo.com 选择器
+      '.article-title',
+      '.article-header h1',
+      '[class*="ArticleTitle"]',
+      '[class*="article-title"]',
     ];
     let title = document.title?.trim() ?? 'Untitled';
     for (const selector of titleSelectors) {
@@ -339,6 +373,13 @@ async function extractArticle(page: Page): Promise<{
       '.reader-body',
       '[data-role="doc-content"]',
       '[class*="DocBody"]',
+      // jx3.xoyo.com 选择器
+      '.article-content',
+      '.article-body',
+      '[class*="ArticleContent"]',
+      '[class*="article-content"]',
+      '[class*="article-body"]',
+      '.content',
     ];
 
     const sheetSelectors = [
@@ -371,6 +412,127 @@ async function extractArticle(page: Page): Promise<{
       script => script.textContent || ''
     );
 
+    // 提取创建时间和更新时间
+    let createdAt: string | undefined;
+    let updatedAt: string | undefined;
+
+    // 尝试从页面元素中提取时间信息
+    const timeSelectors = [
+      '[data-created-at]',
+      '[data-updated-at]',
+      '[data-published-at]',
+      '.doc-meta time',
+      '.doc-info time',
+      '.meta time',
+      '[class*="DocMeta"] time',
+      '[class*="DocInfo"] time',
+      '[class*="Meta"] time',
+    ];
+
+    for (const selector of timeSelectors) {
+      const elements = document.querySelectorAll(selector);
+      for (const el of elements) {
+        const datetime =
+          el.getAttribute('datetime') ||
+          el.getAttribute('data-time') ||
+          el.textContent?.trim();
+        if (datetime) {
+          const attr =
+            el.getAttribute('data-created-at') ||
+            el.getAttribute('data-published-at');
+          if (attr || el.closest('[data-created-at]')) {
+            createdAt = datetime;
+          } else if (
+            el.getAttribute('data-updated-at') ||
+            el.closest('[data-updated-at]')
+          ) {
+            updatedAt = datetime;
+          } else if (!updatedAt) {
+            // 如果没有明确标记，假设是更新时间
+            updatedAt = datetime;
+          }
+        }
+      }
+    }
+
+    // 尝试从 script 标签中的 JSON 数据提取时间
+    for (const script of scripts) {
+      try {
+        // 查找包含时间信息的 JSON
+        const timePatterns = [
+          /"createdAt"\s*:\s*"([^"]+)"/i,
+          /"created_at"\s*:\s*"([^"]+)"/i,
+          /"publishTime"\s*:\s*"([^"]+)"/i,
+          /"updatedAt"\s*:\s*"([^"]+)"/i,
+          /"updated_at"\s*:\s*"([^"]+)"/i,
+          /"updateTime"\s*:\s*"([^"]+)"/i,
+        ];
+
+        for (const pattern of timePatterns) {
+          const match = script.match(pattern);
+          if (match) {
+            const timeValue = match[1];
+            if (
+              pattern.source.includes('created') ||
+              pattern.source.includes('publish')
+            ) {
+              if (!createdAt) createdAt = timeValue;
+            } else {
+              if (!updatedAt) updatedAt = timeValue;
+            }
+          }
+        }
+
+        // 尝试解析完整的 JSON 对象
+        if (
+          script.includes('window.appData') ||
+          script.includes('__NEXT_DATA__')
+        ) {
+          const jsonMatch = script.match(
+            /(?:window\.appData|__NEXT_DATA__)\s*=\s*({[\s\S]*?});/
+          );
+          if (jsonMatch) {
+            try {
+              const data = JSON.parse(jsonMatch[1]);
+              const extractTime = (
+                obj: any,
+                path: string[]
+              ): string | undefined => {
+                let current = obj;
+                for (const key of path) {
+                  if (current && typeof current === 'object') {
+                    current = current[key];
+                  } else {
+                    return undefined;
+                  }
+                }
+                return typeof current === 'string' ? current : undefined;
+              };
+
+              if (!createdAt) {
+                createdAt =
+                  extractTime(data, ['doc', 'createdAt']) ||
+                  extractTime(data, ['doc', 'created_at']) ||
+                  extractTime(data, ['doc', 'publishTime']) ||
+                  extractTime(data, ['props', 'pageProps', 'doc', 'createdAt']);
+              }
+              if (!updatedAt) {
+                updatedAt =
+                  extractTime(data, ['doc', 'updatedAt']) ||
+                  extractTime(data, ['doc', 'updated_at']) ||
+                  extractTime(data, ['doc', 'updateTime']) ||
+                  extractTime(data, ['props', 'pageProps', 'doc', 'updatedAt']);
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+      } catch {
+        // 忽略提取错误
+      }
+    }
+
     const container = document.body.cloneNode(true) as HTMLElement;
     container.querySelectorAll('script').forEach(node => node.remove());
 
@@ -387,7 +549,7 @@ async function extractArticle(page: Page): Promise<{
       html = container.innerHTML;
     }
 
-    return { title, html, sheets, scripts };
+    return { title, html, sheets, scripts, createdAt, updatedAt };
   });
 }
 
@@ -397,12 +559,139 @@ function buildMarkdown(
   sheets: InlineSheet[],
   payloads: SheetPayload[],
   canvasSections: string[],
-  turndown: TurndownService
+  turndown: TurndownService,
+  createdAt?: string,
+  updatedAt?: string
 ) {
   const body = turndown.turndown(html);
   const sheetSections = buildSheetSections(sheets, payloads);
   const canvasContent = canvasSections.join('');
-  return `# ${title}\n\n${body}${sheetSections}${canvasContent}\n`;
+
+  // 构建 frontmatter
+  const frontmatter: string[] = [];
+  if (createdAt) {
+    frontmatter.push(`createdAt: ${normalizeTimestamp(createdAt)}`);
+  }
+  if (updatedAt) {
+    frontmatter.push(`updatedAt: ${normalizeTimestamp(updatedAt)}`);
+  }
+
+  let rawMarkdown = '';
+  if (frontmatter.length > 0) {
+    rawMarkdown = `---\n${frontmatter.join('\n')}\n---\n\n`;
+  }
+  rawMarkdown += `# ${title}\n\n${body}${sheetSections}${canvasContent}\n`;
+
+  return formatMarkdown(rawMarkdown);
+}
+
+/**
+ * 规范化时间戳格式为 ISO 8601
+ */
+function normalizeTimestamp(timestamp: string): string {
+  try {
+    // 尝试解析各种时间格式
+    const date = new Date(timestamp);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+  } catch {
+    // 如果解析失败，返回原始值
+  }
+  return timestamp;
+}
+
+/**
+ * 格式化 Markdown 内容，清理和规范化格式
+ */
+function formatMarkdown(markdown: string): string {
+  let formatted = markdown;
+
+  // 1. 规范化标题层级（确保标题层级合理）
+  formatted = normalizeHeadingLevels(formatted);
+
+  // 2. 清理多余的空白行（最多保留两个连续空行）
+  formatted = formatted.replace(/\n{4,}/g, '\n\n\n');
+
+  // 3. 规范化列表格式（统一列表缩进）
+  formatted = normalizeListIndentation(formatted);
+
+  // 4. 清理行尾空白
+  formatted = formatted
+    .split('\n')
+    .map(line => line.trimEnd())
+    .join('\n');
+
+  // 5. 规范化代码块（确保代码块前后有空行）
+  formatted = formatted.replace(/([^\n])\n```/g, '$1\n\n```');
+  formatted = formatted.replace(/```\n([^\n])/g, '```\n\n$1');
+
+  // 6. 规范化链接格式（清理多余的空白）
+  formatted = formatted.replace(
+    /\[([^\]]+)\]\s*\(\s*([^)]+)\s*\)/g,
+    '[$1]($2)'
+  );
+
+  // 7. 规范化表格格式（确保表格前后有空行）
+  formatted = formatted.replace(/([^\n])\n\|/g, '$1\n\n|');
+  formatted = formatted.replace(/\|\n([^\n|])/g, '|\n\n$1');
+
+  // 8. 清理段落之间的多余空行（段落之间保留一个空行）
+  formatted = formatted.replace(/\n{3,}/g, '\n\n');
+
+  // 9. 确保文档末尾只有一个换行符
+  formatted = formatted.trimEnd() + '\n';
+
+  return formatted;
+}
+
+/**
+ * 规范化标题层级，确保层级合理（避免跳级）
+ */
+function normalizeHeadingLevels(markdown: string): string {
+  const lines = markdown.split('\n');
+  const normalized: string[] = [];
+  let lastLevel = 0;
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const text = headingMatch[2].trim();
+
+      // 如果标题层级跳跃超过1级，调整为上一级+1
+      if (level > lastLevel + 1 && lastLevel > 0) {
+        const adjustedLevel = lastLevel + 1;
+        normalized.push(`${'#'.repeat(adjustedLevel)} ${text}`);
+        lastLevel = adjustedLevel;
+      } else {
+        normalized.push(line);
+        lastLevel = level;
+      }
+    } else {
+      normalized.push(line);
+      // 如果不是标题，重置 lastLevel（允许新的标题从任意级别开始）
+      if (line.trim() && !line.match(/^[#\s*\-`|]/)) {
+        lastLevel = 0;
+      }
+    }
+  }
+
+  return normalized.join('\n');
+}
+
+/**
+ * 规范化列表缩进（统一使用2个空格）
+ */
+function normalizeListIndentation(markdown: string): string {
+  return markdown.replace(
+    /^(\s*)([-*+]|\d+\.)\s+/gm,
+    (match, indent, marker) => {
+      const indentLevel = Math.floor(indent.length / 2);
+      const normalizedIndent = '  '.repeat(indentLevel);
+      return `${normalizedIndent}${marker} `;
+    }
+  );
 }
 
 function createFileName(title: string, url: string) {

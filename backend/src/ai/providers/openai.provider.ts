@@ -49,7 +49,18 @@ export class OpenAiProvider implements AiProvider {
         generateOptions.maxOutputTokens = options.maxTokens;
       }
 
-      const result = await aiGenerateText(generateOptions);
+      if (options.tools) {
+        (generateOptions as Record<string, unknown>).tools = options.tools;
+      }
+
+      if (options.maxToolRoundtrips !== undefined) {
+        (generateOptions as Record<string, unknown>).maxToolRoundtrips =
+          options.maxToolRoundtrips;
+      }
+
+      const result = await aiGenerateText(
+        generateOptions as GenerateTextParams,
+      );
 
       return {
         content: result.text,
@@ -82,10 +93,49 @@ export class OpenAiProvider implements AiProvider {
         streamOptions.maxOutputTokens = options.maxTokens;
       }
 
-      const result = aiStreamText(streamOptions);
+      if (options.tools) {
+        (streamOptions as Record<string, unknown>).tools = options.tools;
+      }
 
-      for await (const delta of result.textStream) {
-        yield delta;
+      if (options.maxToolRoundtrips !== undefined) {
+        (streamOptions as Record<string, unknown>).maxToolRoundtrips =
+          options.maxToolRoundtrips;
+      }
+
+      const result = aiStreamText(streamOptions as StreamTextParams);
+
+      // 流式输出文本
+      // 注意：AI SDK 的 toolCalls 不是 AsyncIterable，而是 Promise
+      // 工具调用会在流式响应中自动处理，我们只需要迭代 textStream
+      try {
+        for await (const delta of result.textStream) {
+          yield delta;
+        }
+      } catch (streamError) {
+        // 检查是否是网络中断错误
+        const isNetworkError =
+          streamError instanceof Error &&
+          (streamError.message === 'terminated' ||
+            streamError.message.includes('terminated') ||
+            streamError.name === 'AbortError' ||
+            streamError.message.includes('fetch failed') ||
+            streamError.message.includes('ECONNREFUSED') ||
+            streamError.message.includes('ETIMEDOUT'));
+
+        if (isNetworkError) {
+          this.logger.warn(
+            'OpenAI streaming interrupted (network error)',
+            streamError instanceof Error
+              ? streamError.message
+              : String(streamError),
+          );
+        } else {
+          this.logger.error(
+            'OpenAI streaming failed',
+            streamError instanceof Error ? streamError.stack : streamError,
+          );
+        }
+        throw streamError;
       }
     } catch (error) {
       this.logger.error(

@@ -38,9 +38,22 @@ export const configuration = () => {
       yuqueToken: env.YUQUE_TOKEN,
       yuqueSpace: env.YUQUE_SPACE,
     },
+    guides: {
+      baseUrl: env.GUIDE_BASE_URL,
+      whitepaperKeywords: env.GUIDE_WHITEPAPER_KEYWORDS
+        ? env.GUIDE_WHITEPAPER_KEYWORDS.split(',')
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : undefined,
+    },
     telemetry: {
       sentryDsn: env.SENTRY_DSN,
       otelEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    },
+    integrations: {
+      perplexity: {
+        apiKey: env.PERPLEXITY_API_KEY,
+      },
     },
   };
 };
@@ -50,4 +63,6 @@ export type DatabaseConfig = AppConfig['database'];
 export type RedisConfig = AppConfig['redis'];
 export type StorageConfig = AppConfig['storage'];
 export type KnowledgeConfig = AppConfig['knowledge'];
+export type GuideConfig = AppConfig['guides'];
 export type TelemetryConfig = AppConfig['telemetry'];
+export type IntegrationsConfig = AppConfig['integrations'];

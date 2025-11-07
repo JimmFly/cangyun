@@ -38,6 +38,9 @@ export const envSchema = z
     YUQUE_SPACE: z.string().trim().optional(),
     SENTRY_DSN: z.string().trim().optional(),
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().trim().optional(),
+    GUIDE_BASE_URL: z.string().trim().optional(),
+    GUIDE_WHITEPAPER_KEYWORDS: z.string().trim().optional(),
+    PERPLEXITY_API_KEY: z.string().trim().optional(),
   })
   .superRefine((env, ctx) => {
     if (

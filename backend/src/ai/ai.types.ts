@@ -11,6 +11,8 @@ export interface GenerateTextOptions {
   temperature?: number;
   maxTokens?: number;
   stream?: boolean;
+  tools?: Record<string, unknown>;
+  maxToolRoundtrips?: number;
 }
 
 export interface GenerateTextResult {

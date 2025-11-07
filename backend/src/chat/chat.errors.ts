@@ -7,7 +7,7 @@ export class ChatStreamError extends Error {
     this.code = code;
     this.name = 'ChatStreamError';
     if (options?.cause) {
-      (this as any).cause = options.cause;
+      this.cause = options.cause;
     }
   }
 }

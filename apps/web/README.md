@@ -6,7 +6,7 @@ React 19 + Vite 应用，为 Cangyun 分山劲多模态战术台提供前端界�
 
 - React 19 + `react-router@7` 提供极简导航骨架。
 - Tailwind CSS + shadcn/ui components via the shared `@cangyun-ai/ui` package.
-- SSE-based chat client parsing streamed deltas and source metadata.
+- 自定义 `CustomChatTransport`（封装于 `features/chat/utils`）桥接 Vercel AI SDK 的 `useChat` 与后端 SSE，统一 sources/delta 事件解析与错误处理。
 - TypeScript path aliases defined in `tsconfig.base.json`.
 
 ## Getting Started
@@ -28,6 +28,13 @@ The Vite config proxies `/api` to `http://localhost:3000`, so start the backend 
 - `/chat` – Streaming chat assistant with adjustable `topK` controls, citation list, and SSE status feedback.
 - `*` – Friendly 404 page via `NotFoundRoute`.
 
+## Chat Capabilities
+
+- 通过检索片段选择器在 3/6/8/10 之间切换，并随请求传递到后端。
+- `CustomChatTransport` 把 `sources` 事件写入本地状态，引用面板可直接从 SSE 获得最新来源。
+- `useChat` 的 `status` 辅助文案（“发送中…”/“生成中…”），并支持 `stop()` 立即中断 SSE。
+- 错误消息由 transport 统一解析，展示请求 ID 以便排查。
+
 ## Project Structure
 
 ```
@@ -43,7 +50,7 @@ src/
 
 - Follow the patterns documented in `AGENTS.md` (React: derive data in render, keep effects for external sync only).
 - Shared UI components live in `@cangyun-ai/ui`; avoid local duplicates unless prototyping.
-- Use `streamChat` utility to interact with the backend SSE endpoint; it handles partial events, errors, and completion states.
+- 通过 `CustomChatTransport` 接入后端 SSE；如需调试可以在 `features/chat/utils/custom-chat-transport.ts` 中扩展日志或错误上报。
 
 ## Testing & Linting
 

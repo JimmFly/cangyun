@@ -13,6 +13,7 @@ export interface ChatSource {
   title: string;
   url?: string;
   order: number;
+  sourceType?: 'knowledge' | 'external';
 }
 
 export interface ChatHistoryMessage {

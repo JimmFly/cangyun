@@ -78,8 +78,26 @@ export class CustomChatTransport implements ChatTransport<UIMessage> {
       signal: abortSignal,
     });
 
-    if (!response.ok || !response.body) {
-      throw new Error(`Request failed: ${response.statusText}`);
+    if (!response.ok) {
+      let errorMessage = `请求失败: ${response.status} ${response.statusText}`;
+      try {
+        const errorText = await response.text();
+        if (errorText) {
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.message || errorJson.error || errorMessage;
+          } catch {
+            errorMessage = errorText.slice(0, 200);
+          }
+        }
+      } catch {
+        // 忽略解析错误，使用默认错误消息
+      }
+      throw new Error(errorMessage);
+    }
+
+    if (!response.body) {
+      throw new Error('响应体为空');
     }
 
     // 转换 SSE 流为 UIMessageChunk 流
@@ -143,6 +161,16 @@ export class CustomChatTransport implements ChatTransport<UIMessage> {
                   Array.isArray(payload.data)
                 ) {
                   handleSources?.(payload.data);
+                } else if (
+                  payload.type === 'status' &&
+                  payload.data &&
+                  typeof payload.data === 'object'
+                ) {
+                  // 发送 Agent 状态事件（作为自定义数据）
+                  controller.enqueue({
+                    type: 'data',
+                    data: { type: 'agent-status', ...payload.data },
+                  });
                 } else if (payload.type === 'done') {
                   if (hasStarted) {
                     controller.enqueue({ type: 'text-end', id: chunkId });
@@ -150,13 +178,23 @@ export class CustomChatTransport implements ChatTransport<UIMessage> {
                   controller.close();
                   return;
                 } else if (payload.type === 'error') {
-                  const rawMessage =
-                    typeof payload.data === 'string'
-                      ? payload.data
-                      : (payload.data?.message ?? '未知错误');
+                  let errorMessage = '未知错误';
+                  if (typeof payload.data === 'string') {
+                    errorMessage = payload.data;
+                  } else if (payload.data && typeof payload.data === 'object') {
+                    errorMessage =
+                      payload.data.message ||
+                      payload.data.error ||
+                      payload.data.code ||
+                      '未知错误';
+                    // 如果有 requestId，添加到错误消息中
+                    if (payload.data.requestId) {
+                      errorMessage += ` (请求 ID: ${payload.data.requestId})`;
+                    }
+                  }
                   controller.enqueue({
                     type: 'error',
-                    errorText: `⚠️ ${rawMessage}`,
+                    errorText: `⚠️ ${errorMessage}`,
                   });
                   controller.close();
                   return;
@@ -167,9 +205,23 @@ export class CustomChatTransport implements ChatTransport<UIMessage> {
             }
           }
         } catch (error) {
-          if ((error as Error)?.name !== 'AbortError') {
-            controller.error(error);
+          if ((error as Error)?.name === 'AbortError') {
+            // 用户取消请求，不显示错误
+            controller.close();
+            return;
           }
+          // 其他错误，显示错误消息
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : typeof error === 'string'
+                ? error
+                : '处理响应时发生未知错误';
+          controller.enqueue({
+            type: 'error',
+            errorText: `⚠️ ${errorMessage}`,
+          });
+          controller.close();
         } finally {
           reader.releaseLock();
         }

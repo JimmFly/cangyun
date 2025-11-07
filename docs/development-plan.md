@@ -2,19 +2,19 @@
 
 ## 当前状态概览
 
-- Monorepo 结构已搭建，前端 `apps/web` 已提供极简的控制台壳层与聊天界面。
-- `apps/common` 目录下的共享包已创建，但除 UI 组件外其余内容仍为空壳。
-- 后端 `backend` 保持 NestJS 脚手架初始状态，仅提供 `GET /` Hello World。
-- 基础工程化能力（Husky、ESLint、Prettier、pnpm workspace）已就位，尚缺 CI/CD、数据库、AI Provider 接入与文档联动。
+- Monorepo 结构、Husky、ESLint、Prettier 与 `pnpm` workspace 均已落地，`pnpm run dev` 可以同时启动 web 与 backend；型别配置统一在根 `tsconfig`。
+- 后端完成 `AppConfigModule`、`AiModule`、`KnowledgeModule`、`ChatModule`、`GuideModule` 与 `CangyunModule` 的串联，SSE `/api/v1/chat` 正在提供问答能力，并根据配置调用外部攻略站工具。
+- 前端 `apps/web` 的 `ChatRoute` 通过自定义 `CustomChatTransport` 解析 SSE，包含 topK 选择、引用面板、流式状态与 `stop()` 中断。
+- 知识摄取脚本（Yuque 抓取 + Markdown 导入）已能输出结构化 Markdown、表格截图/OCR，并用 `pnpm run ingest:markdown` 自动切块、写入 `/api/v1/knowledge/documents`。
 
 ## 进度更新（近期）
 
-- 引入 `DatabaseModule` + `PostgresKnowledgeRepository`，`/api/v1/knowledge/documents` 现已落库 pgvector；查询阶段会根据 AI 生成的向量排序。
-- `ChatRoute` 支持可调节的检索片段数量（3/6/8/10）并遵循 “You Might Not Need an Effect” 原则整理状态。
-- `scripts/knowledge/ingest-yuque.ts` 基于 Playwright 抓取公开页面，输出 Markdown；首次运行需 `pnpm exec playwright install chromium`，`YUQUE_MAX_DOCS` / `YUQUE_SCROLL_ATTEMPTS` 控制抓取范围，Canvas 表格通过截图 + OCR (`tesseract.js`) 生成文本附件。
-- 后端 AI 模块切换为 [Vercel AI SDK](https://ai-sdk.dev/docs/introduction)，统一处理流式响应与向量生成，替代手写 fetch。
-- 新增 `docker-compose.yml`（pgvector + Redis）便于本地启动依赖服务，`.env.example` 可直接指向该配置。
-- Yuque 爬虫脚本支持无 Token 公共空间，保留 Token 时仍可获得更高配额与私有空间访问。
+- 新增 `GuideModule` + `CangyunModule`：后端会在聊天流中暴露 `fetch_current_season_guide`、`cangyun_search`、`cangyun_fetch_page` 工具，使用 Perplexity 将搜索限定在 `GUIDE_BASE_URL` / 语雀苍云 / 剑三魔盒 / 每日攻略域名，并缓存 30 分钟。
+- `ChatService` 增强检索：根据“山海源流”“弓月城”等关键词扩充 query，汇总历史、限制工具调用轮次，并在系统提示中写入最新赛季、怒气与填充技能背景。
+- Web 端切换自定义 `CustomChatTransport`，统一处理 SSE `sources/delta/error` 事件，提供 topK 下拉、流式状态提示与停止按钮，引用面板实时从 transport 获取 Source 列表。
+- `scripts/knowledge/ingest-yuque.ts` 捕获 sheet API 响应、写入 frontmatter、对 Canvas 表格截图 + OCR；`scripts/knowledge/ingest-markdown.ts` 负责规范 Markdown、切 chunk、分批调用 `/api/v1/knowledge/documents` 并透出导入进度。
+- `.env.example`、配置模块与 README 系统化记录了 `GUIDE_*`、`PERPLEXITY_API_KEY`、S3/OCR 等变量，zod 校验会在缺失关键凭证时立即终止。
+- Docker Compose（pgvector + Redis）、DatabaseModule、Vercel AI SDK provider 已可用；CI/CD、`/healthz`、全局异常过滤、速率限制仍待实现。
 - 技能系数汇总的查询仍缺乏权威数据来源，暂缓实现并待后续排期。
 
 ## Phase 1（W1–W6）：文字 RAG MVP

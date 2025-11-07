@@ -2,7 +2,7 @@
 
 This directory hosts end-user applications that ship with the Cangyun monorepo.
 
-- `apps/web` – React-based console and chat client (see `apps/web/README.md`).
+- `apps/web` – React-based console and chat client（自定义 SSE transport、引用面板、可调检索片段；详见 `apps/web/README.md`）。
 - Additional surfaces (e.g., admin dashboards, mobile shells) should live under this folder following the same naming convention.
 
 ## Guidelines

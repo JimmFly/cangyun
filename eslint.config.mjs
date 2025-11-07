@@ -22,6 +22,10 @@ export default tseslint.config(
       '**/*.config.mjs',
       '**/*.config.ts',
       'eslint.config.mjs',
+      '**/test/**/*.js',
+      '**/test/**/*.js.map',
+      '**/test/**/*.d.ts',
+      '**/dist/**/*',
     ],
   },
   {
