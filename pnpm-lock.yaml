@@ -160,6 +160,10 @@ importers:
         version: 5.9.3
 
   apps/common/types:
+    dependencies:
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ~5.9.3
@@ -355,6 +359,9 @@ importers:
       '@ai-sdk/react':
         specifier: ^2.0.87
         version: 2.0.88(react@19.2.0)(zod@4.1.12)
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../common/types
       '@cangyun-ai/ui':
         specifier: workspace:*
         version: link:../common/ui
@@ -491,6 +498,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^2.0.63
         version: 2.0.63(zod@3.25.76)
+      '@cangyun-ai/types':
+        specifier: workspace:*
+        version: link:../apps/common/types
       '@mozilla/readability':
         specifier: ^0.5.0
         version: 0.5.0
@@ -537,6 +547,9 @@ importers:
       '@eslint/js':
         specifier: ^9.18.0
         version: 9.37.0
+      '@jest/globals':
+        specifier: ^30.2.0
+        version: 30.2.0
       '@nestjs/cli':
         specifier: ^11.0.0
         version: 11.0.10(@swc/core@1.13.5)(@types/node@22.18.8)
@@ -8393,7 +8406,7 @@ snapshots:
       '@jest/schemas': 30.0.5
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.18.8
+      '@types/node': 24.7.0
       '@types/yargs': 17.0.33
       chalk: 4.1.2
 

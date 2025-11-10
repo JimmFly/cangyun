@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
-import { Logger, type LogLevel } from '@nestjs/common';
+import { Logger, ValidationPipe, type LogLevel } from '@nestjs/common';
 import type { RequestHandler } from 'express';
 
 async function bootstrap() {
@@ -21,6 +21,18 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: logLevels,
   });
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+      validateCustomDecorators: true,
+    }),
+  );
 
   // 增加请求体大小限制（支持大文件导入）
   // 使用动态导入来避免 ESM 模块解析问题

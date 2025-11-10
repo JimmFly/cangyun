@@ -5,21 +5,13 @@ import { KnowledgeAgentService } from './agents/knowledge-agent.service.js';
 import { ExternalAgentService } from './agents/external-agent.service.js';
 import { CoordinatorAgentService } from './agents/coordinator-agent.service.js';
 import type { KnowledgeSearchResult } from '../knowledge/knowledge.types.js';
+import type { ChatAgentStatus, ChatSource } from '@cangyun-ai/types';
 
 const CONTEXT_QUERY_MAX_LENGTH = 400;
 
 interface ChatStream {
   stream: AsyncIterable<string>;
   sources: ChatSource[];
-}
-
-export interface ChatSource {
-  id: string;
-  title: string;
-  url?: string;
-  chunkId: string;
-  order: number;
-  sourceType?: 'knowledge' | 'external';
 }
 
 /**
@@ -40,12 +32,7 @@ export class ChatService {
 
   async createChatStream(
     request: ChatRequestDto,
-    onStatus?: (status: {
-      step: string;
-      label: string;
-      tool?: string;
-      agent?: string;
-    }) => void,
+    onStatus?: (status: ChatAgentStatus) => void,
   ): Promise<ChatStream> {
     const trimmedQuestion = request.question.trim();
     const contextAwareQuestion = this.buildContextAwareQuestion(

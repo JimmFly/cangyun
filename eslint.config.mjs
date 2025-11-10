@@ -19,6 +19,7 @@ export default tseslint.config(
     ignores: [
       ...ignoreList,
       '**/*.config.js',
+      '**/*.config.cjs',
       '**/*.config.mjs',
       '**/*.config.ts',
       'eslint.config.mjs',

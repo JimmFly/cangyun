@@ -773,7 +773,9 @@ export const PromptInputTextarea = ({
   const attachments = usePromptInputAttachments();
   const [isComposing, setIsComposing] = useState(false);
   const compositionRef = useRef(false);
-  const compositionEndTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const compositionEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // 处理中文输入法组合状态

@@ -1,9 +1,14 @@
 import { Body, Controller, Logger, Post, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ChatService } from './chat.service.js';
-import type { ChatRequestDto } from './dto/chat-request.dto.js';
 import { ChatStreamError } from './chat.errors.js';
 import { randomUUID } from 'node:crypto';
+import {
+  chatRequestSchema,
+  type ChatAgentStatus,
+  type ChatRequestPayload,
+  type ChatSseEvent,
+} from '@cangyun-ai/types';
 
 const SSE_HEADERS: Record<string, string> = {
   'Content-Type': 'text/event-stream',
@@ -20,41 +25,58 @@ export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
   @Post()
-  async createChat(
-    @Body() body: ChatRequestDto,
-    @Res() res: Response,
-  ): Promise<void> {
+  async createChat(@Body() body: unknown, @Res() res: Response): Promise<void> {
     const requestId = randomUUID();
+
+    let payload: ChatRequestPayload;
+    try {
+      payload = chatRequestSchema.parse(body);
+    } catch (validationError) {
+      const message =
+        validationError instanceof Error
+          ? validationError.message
+          : 'payload validation failed';
+      this.logger.warn(
+        `Chat request ${requestId} rejected: ${message}`,
+        validationError instanceof Error ? validationError.stack : undefined,
+      );
+      res.status(400).json({
+        type: 'error',
+        data: {
+          code: 'CHAT_BAD_REQUEST',
+          message: `${message}（请求 ID: ${requestId}）`,
+          requestId,
+        },
+      });
+      return;
+    }
+
     // 仅在开发环境记录请求开始日志
     if (process.env.NODE_ENV === 'development') {
       this.logger.log(
-        `Chat request ${requestId} started (topK=${body.topK ?? 6})`,
+        `Chat request ${requestId} started (topK=${payload.topK ?? 6})`,
       );
     }
+
     res.writeHead(200, SSE_HEADERS);
     res.flushHeaders?.();
 
+    const writeEvent = (event: ChatSseEvent) => {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
     try {
       // 发送 Agent 状态事件的回调
-      const sendStatus = (status: {
-        step: string;
-        label: string;
-        tool?: string;
-        agent?: string;
-      }) => {
-        res.write(
-          `data: ${JSON.stringify({ type: 'status', data: status })}\n\n`,
-        );
+      const sendStatus = (status: ChatAgentStatus) => {
+        writeEvent({ type: 'status', data: status });
       };
 
       const { stream, sources } = await this.chatService.createChatStream(
-        body,
+        payload,
         sendStatus,
       );
 
-      res.write(
-        `data: ${JSON.stringify({ type: 'sources', data: sources })}\n\n`,
-      );
+      writeEvent({ type: 'sources', data: sources });
 
       let hasDelta = false;
 
@@ -63,9 +85,7 @@ export class ChatController {
           if (typeof delta === 'string' && delta.trim().length > 0) {
             hasDelta = true;
           }
-          res.write(
-            `data: ${JSON.stringify({ type: 'delta', data: delta })}\n\n`,
-          );
+          writeEvent({ type: 'delta', data: delta });
         }
       } catch (streamError) {
         // 检查是否是网络中断错误
@@ -107,12 +127,10 @@ export class ChatController {
 
         // 如果是网络错误且已经有部分内容，发送错误消息给前端
         if (isNetworkError && hasDelta) {
-          res.write(
-            `data: ${JSON.stringify({
-              type: 'delta',
-              data: '\n\n⚠️ 网络连接中断，回答可能不完整。',
-            })}\n\n`,
-          );
+          writeEvent({
+            type: 'delta',
+            data: '\n\n⚠️ 网络连接中断，回答可能不完整。',
+          });
         }
       }
 
@@ -127,12 +145,10 @@ export class ChatController {
           sources.length === 0
             ? '当前资料不足或外部搜索未返回有效内容，暂时无法给出可靠答案。建议换个问法或稍后重试。'
             : '抱歉，AI 未能生成回答。虽然已找到相关资料，但生成过程出现问题。请稍后重试，或尝试换个问法。';
-        res.write(
-          `data: ${JSON.stringify({ type: 'delta', data: fallback })}\n\n`,
-        );
+        writeEvent({ type: 'delta', data: fallback });
       }
 
-      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+      writeEvent({ type: 'done' });
     } catch (error) {
       const isKnown = error instanceof ChatStreamError;
       const code = isKnown ? error.code : 'CHAT_INTERNAL_ERROR';
@@ -146,16 +162,14 @@ export class ChatController {
         error instanceof Error ? error.stack : undefined,
       );
 
-      res.write(
-        `data: ${JSON.stringify({
-          type: 'error',
-          data: {
-            code,
-            message: messageWithId,
-            requestId,
-          },
-        })}\n\n`,
-      );
+      writeEvent({
+        type: 'error',
+        data: {
+          code,
+          message: messageWithId,
+          requestId,
+        },
+      });
     } finally {
       res.end();
     }

@@ -1,4 +1,11 @@
-export type ChatRole = 'user' | 'assistant';
+import type {
+  ChatHistoryMessage as SharedChatHistoryMessage,
+  ChatRequestPayload as SharedChatRequestPayload,
+  ChatSource as SharedChatSource,
+  ChatMessageRole,
+} from '@cangyun-ai/types';
+
+export type ChatRole = ChatMessageRole;
 
 export interface ChatMessage {
   id: string;
@@ -7,22 +14,6 @@ export interface ChatMessage {
   pending?: boolean;
 }
 
-export interface ChatSource {
-  id: string;
-  chunkId: string;
-  title: string;
-  url?: string;
-  order: number;
-  sourceType?: 'knowledge' | 'external';
-}
-
-export interface ChatHistoryMessage {
-  role: ChatRole;
-  content: string;
-}
-
-export interface ChatRequestPayload {
-  question: string;
-  history: ChatHistoryMessage[];
-  topK?: number;
-}
+export type ChatSource = SharedChatSource;
+export type ChatHistoryMessage = SharedChatHistoryMessage;
+export type ChatRequestPayload = SharedChatRequestPayload;

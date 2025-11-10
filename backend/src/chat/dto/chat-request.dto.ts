@@ -1,12 +1,10 @@
-export type ChatMessageRole = 'user' | 'assistant';
+import type {
+  ChatHistoryMessage,
+  ChatMessageRole,
+  ChatRequestPayload,
+} from '@cangyun-ai/types';
 
-export interface ChatMessageDto {
-  role: ChatMessageRole;
-  content: string;
-}
+export type ChatMessageDto = ChatHistoryMessage;
+export type ChatRequestDto = ChatRequestPayload;
 
-export interface ChatRequestDto {
-  question: string;
-  topK?: number;
-  history?: ChatMessageDto[];
-}
+export { ChatMessageRole };

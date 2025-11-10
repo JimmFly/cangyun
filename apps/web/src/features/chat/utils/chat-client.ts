@@ -1,4 +1,4 @@
-import type { ChatRequestPayload, ChatSource } from '../types';
+import type { ChatRequestPayload, ChatSource } from '@cangyun-ai/types';
 
 export interface StreamHandlers {
   onDelta: (delta: string) => void;

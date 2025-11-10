@@ -1,5 +1,9 @@
 import type { ChatTransport, UIMessage, UIMessageChunk } from 'ai';
-import type { ChatRequestPayload, ChatSource } from '../types';
+import type {
+  ChatAttachmentPayload,
+  ChatRequestPayload,
+  ChatSource,
+} from '@cangyun-ai/types';
 
 type SendOptions = Parameters<ChatTransport<UIMessage>['sendMessages']>[0];
 type ReconnectOptions = Parameters<
@@ -60,11 +64,13 @@ export class CustomChatTransport implements ChatTransport<UIMessage> {
     // 从 body 中获取 topK，默认 6
     const resolvedBody = CustomChatTransport.toRecord(body);
     const topK = CustomChatTransport.resolveTopK(resolvedBody);
+    const attachments = CustomChatTransport.resolveAttachments(resolvedBody);
 
     const payload: ChatRequestPayload = {
       question,
       history,
       topK,
+      ...(attachments ? { attachments } : {}),
     };
 
     const response = await fetch(this.api, {
@@ -167,10 +173,11 @@ export class CustomChatTransport implements ChatTransport<UIMessage> {
                   typeof payload.data === 'object'
                 ) {
                   // 发送 Agent 状态事件（作为自定义数据）
+                  // 使用类型断言，因为 UIMessageChunk 的类型定义可能不包含自定义的 data 类型
                   controller.enqueue({
-                    type: 'data',
+                    type: 'data-agent-status' as any,
                     data: { type: 'agent-status', ...payload.data },
-                  });
+                  } as UIMessageChunk);
                 } else if (payload.type === 'done') {
                   if (hasStarted) {
                     controller.enqueue({ type: 'text-end', id: chunkId });
@@ -268,6 +275,37 @@ export class CustomChatTransport implements ChatTransport<UIMessage> {
       }
     }
     return fallback;
+  }
+
+  private static resolveAttachments(
+    body: Record<string, unknown> | undefined
+  ): ChatAttachmentPayload[] | undefined {
+    if (!body?.attachments || !Array.isArray(body.attachments)) {
+      return undefined;
+    }
+    const attachments = body.attachments
+      .filter(CustomChatTransport.isAttachmentPayload)
+      .slice(0, 4);
+    return attachments.length > 0 ? attachments : undefined;
+  }
+
+  private static isAttachmentPayload(
+    value: unknown
+  ): value is ChatAttachmentPayload {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+    const candidate = value as Partial<ChatAttachmentPayload>;
+    return (
+      typeof candidate.id === 'string' &&
+      candidate.id.trim().length > 0 &&
+      typeof candidate.name === 'string' &&
+      candidate.name.trim().length > 0 &&
+      typeof candidate.mimeType === 'string' &&
+      candidate.mimeType.trim().length > 0 &&
+      typeof candidate.dataUrl === 'string' &&
+      candidate.dataUrl.startsWith('data:')
+    );
   }
 
   setOnSources(handler: (sources: ChatSource[]) => void) {

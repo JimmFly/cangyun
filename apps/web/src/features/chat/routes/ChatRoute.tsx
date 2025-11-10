@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { UIMessage } from 'ai';
+import type { FileUIPart, UIMessage } from 'ai';
 import { useChat } from '@ai-sdk/react';
 import { ChevronDown, CopyIcon, RefreshCw, AlertCircle, X } from 'lucide-react';
 import { Button } from '@cangyun-ai/ui/components/ui/button';
@@ -48,7 +48,7 @@ import {
   ChainOfThoughtContent,
 } from '@/components/ai-elements/chain-of-thought';
 import { Search, Database, Globe, Sparkles } from 'lucide-react';
-import type { ChatSource } from '../types';
+import type { ChatAttachmentPayload, ChatSource } from '@cangyun-ai/types';
 import { CustomChatTransport } from '../utils/custom-chat-transport';
 
 const INTRO_MESSAGE = `你好，我是苍云分山劲循环助手。告诉我你卡住的技能循环、装备或手法，我会结合知识库提供建议。`;
@@ -61,11 +61,53 @@ interface AgentStep {
   status: 'complete' | 'active' | 'pending';
 }
 
+const generateAttachmentId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `att-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const mapAttachmentsToPayload = (
+  files?: FileUIPart[]
+): ChatAttachmentPayload[] => {
+  if (!files?.length) {
+    return [];
+  }
+
+  const mapped = files
+    .slice(0, 4)
+    .map((file, index) => {
+      const dataUrl =
+        typeof file.url === 'string' && file.url.length > 0 ? file.url : '';
+      if (!dataUrl.startsWith('data:')) {
+        return null;
+      }
+
+      const maybeSizedFile = file as FileUIPart & { size?: number };
+      const size =
+        typeof maybeSizedFile.size === 'number' &&
+        Number.isFinite(maybeSizedFile.size)
+          ? Math.max(0, maybeSizedFile.size)
+          : undefined;
+
+      return {
+        id: generateAttachmentId(),
+        name: file.filename?.trim() || `attachment-${index + 1}`,
+        mimeType: file.mediaType?.trim() || 'application/octet-stream',
+        dataUrl,
+        size,
+      };
+    })
+    .filter(attachment => attachment !== null);
+
+  return mapped as ChatAttachmentPayload[];
+};
+
 export function ChatRoute() {
   const [sources, setSources] = useState<ChatSource[]>([]);
   const [topK, setTopK] = useState('6');
   const [input, setInput] = useState('');
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
   const transportRef = useRef<CustomChatTransport | null>(null);
@@ -95,9 +137,10 @@ export function ChatRoute() {
         data &&
         typeof data === 'object' &&
         'type' in data &&
-        data.type === 'agent-status'
+        (data.type as string) === 'agent-status'
       ) {
-        const statusData = data as {
+        // 类型断言：data 包含 agent-status 信息
+        const statusData = data as unknown as {
           type: string;
           step: string;
           label: string;
@@ -128,6 +171,10 @@ export function ChatRoute() {
     },
   });
 
+  const isStreaming = status === 'streaming';
+  const isSubmitting = status === 'submitted';
+  const isInFlight = isStreaming || isSubmitting;
+
   // 更新 transport 的 onSources handler
   useEffect(() => {
     if (transportRef.current) {
@@ -135,28 +182,15 @@ export function ChatRoute() {
     }
   }, []);
 
-  // 当开始流式响应时，重置 pending（由 status 控制文案）
-  // 注意：只有在明确进入 streaming 状态时才重置 pending
-  // 这样可以确保在消息发送后、服务器响应前，pending 保持为 true
   useEffect(() => {
-    if (status === 'streaming' && pending) {
-      setPending(false);
+    if (!isInFlight) {
+      setAgentSteps(prev =>
+        prev.map(s =>
+          s.status === 'active' ? { ...s, status: 'complete' as const } : s
+        )
+      );
     }
-    // 如果状态不是 streaming 且 pending 仍为 true，说明请求已完成或失败，重置 pending
-    if (status !== 'streaming' && pending) {
-      // 延迟一点重置，确保 UI 有时间显示最终状态
-      const timer = setTimeout(() => {
-        setPending(false);
-        // 将所有 active 步骤标记为 complete
-        setAgentSteps(prev =>
-          prev.map(s =>
-            s.status === 'active' ? { ...s, status: 'complete' } : s
-          )
-        );
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [status, pending]);
+  }, [isInFlight]);
 
   // 监听消息中的错误
   useEffect(() => {
@@ -181,19 +215,27 @@ export function ChatRoute() {
     }
   }, [messages, error]);
 
-  const submitMessage = () => {
-    if (!input.trim() || status === 'streaming') return;
+  const submitMessage = (message?: PromptInputMessage) => {
+    const nextText = (message?.text ?? input).trim();
+    if (!nextText || isInFlight) {
+      return;
+    }
 
-    // 发送消息时包含 topK 参数（通过 body 传递）
-    setPending(true);
+    const attachments = mapAttachmentsToPayload(message?.files);
+    const body: Record<string, unknown> = {
+      topK: Number.parseInt(topK, 10) || 6,
+    };
+    if (attachments.length > 0) {
+      body.attachments = attachments;
+    }
+
     setError(null); // 清除之前的错误
     setAgentSteps([]); // 重置 Agent 步骤
+
     sendMessage(
-      { text: input },
+      { text: nextText },
       {
-        body: {
-          topK: Number.parseInt(topK, 10) || 6,
-        },
+        body,
       }
     );
     setInput('');
@@ -201,15 +243,15 @@ export function ChatRoute() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    submitMessage();
+    submitMessage({ text: input });
   };
 
   const handlePromptInputSubmit = (
-    _message: PromptInputMessage,
+    message: PromptInputMessage,
     event: FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
-    submitMessage();
+    submitMessage(message);
   };
 
   return (
@@ -231,7 +273,7 @@ export function ChatRoute() {
                   const isEmptyAndStreaming =
                     isAssistant &&
                     isLastMessage &&
-                    (status === 'streaming' || pending) &&
+                    isInFlight &&
                     (!messageText || messageText.trim() === '');
 
                   const handleCopy = async () => {
@@ -346,9 +388,7 @@ export function ChatRoute() {
                     </MessageContent>
                   </Message>
                 )}
-                {(pending ||
-                  status === 'streaming' ||
-                  agentSteps.length > 0) && (
+                {(isInFlight || agentSteps.length > 0) && (
                   <Message from="assistant">
                     <MessageContent
                       variant="flat"
@@ -387,7 +427,7 @@ export function ChatRoute() {
                         <div className="flex items-center gap-2">
                           <Loader />
                           <span className="ml-2 text-neutral-400">
-                            {status === 'streaming' ? '生成中…' : '发送中…'}
+                            {isStreaming ? '生成中…' : '发送中…'}
                           </span>
                         </div>
                       )}
@@ -414,7 +454,7 @@ export function ChatRoute() {
                     }}
                     placeholder="输入消息..."
                     className="min-h-[56px] max-h-[200px] resize-none rounded-xl border-white/20 bg-white/10 px-4 py-3.5 text-sm text-white placeholder:text-neutral-500 focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-                    disabled={status === 'streaming'}
+                    disabled={isStreaming}
                     onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
                       if (event.key === 'Enter' && !event.shiftKey) {
                         event.preventDefault();
@@ -432,7 +472,7 @@ export function ChatRoute() {
                           <Select
                             value={topK}
                             onValueChange={setTopK}
-                            disabled={status === 'streaming'}
+                            disabled={isInFlight}
                           >
                             <SelectTrigger className="h-7 w-20 rounded-md border-white/20 bg-white/15 text-xs text-white">
                               <SelectValue />
@@ -445,12 +485,12 @@ export function ChatRoute() {
                             </SelectContent>
                           </Select>
                         </div>
-                        {(pending || status === 'streaming') && (
+                        {isInFlight && (
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-neutral-300">
-                              {status === 'streaming' ? '生成中…' : '发送中…'}
+                              {isStreaming ? '生成中…' : '发送中…'}
                             </span>
-                            {status === 'streaming' && (
+                            {isStreaming && (
                               <Button
                                 type="button"
                                 variant="outline"
@@ -466,14 +506,8 @@ export function ChatRoute() {
                       </div>
                     </PromptInputTools>
                     <PromptInputSubmit
-                      status={
-                        status === 'streaming' || pending
-                          ? 'streaming'
-                          : 'ready'
-                      }
-                      disabled={
-                        !input.trim() || status === 'streaming' || pending
-                      }
+                      status={isInFlight ? 'streaming' : 'ready'}
+                      disabled={!input.trim() || isInFlight}
                     />
                   </PromptInputFooter>
                 </PromptInput>

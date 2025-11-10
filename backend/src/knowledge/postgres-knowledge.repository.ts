@@ -112,14 +112,6 @@ export class PostgresKnowledgeRepository implements KnowledgeRepository {
         const chunkId = randomUUID();
         const vectorLiteral = toVectorLiteral(chunk.embedding);
 
-        // 对于向量类型，我们需要直接在 SQL 中使用字符串字面量
-        // 因为 PostgreSQL 无法从参数推断 CASE 表达式中的类型
-        // 注意：vectorLiteral 是从我们的数组生成的，所以是安全的（只是数字）
-        // 但为了安全，我们仍然需要转义单引号（虽然数字数组不会有单引号）
-        const embeddingSql = vectorLiteral
-          ? `'${vectorLiteral.replace(/'/g, "''")}'::vector`
-          : 'NULL';
-
         const { rows } = await client.query<ChunkRow>(
           `INSERT INTO knowledge_chunks (
             id,
@@ -138,8 +130,8 @@ export class PostgresKnowledgeRepository implements KnowledgeRepository {
             $3,
             $4,
             $5,
-            ${embeddingSql},
-            $6::jsonb,
+            $6::vector,
+            $7::jsonb,
             NOW(),
             NOW()
           )
@@ -150,6 +142,7 @@ export class PostgresKnowledgeRepository implements KnowledgeRepository {
             chunk.content,
             chunk.order,
             chunk.tokenCount ?? null,
+            vectorLiteral,
             JSON.stringify(chunk.metadata ?? {}),
           ],
         );
